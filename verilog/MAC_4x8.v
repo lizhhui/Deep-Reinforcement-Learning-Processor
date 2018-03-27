@@ -1,5 +1,5 @@
 // MAC_4x8
-// Author: Huwan MACng
+// Author: Frank Peng
 // Create Date: Mar.26, 2018
 
 module MAC_4x8
