@@ -16,6 +16,10 @@ module PE
 	input [TOTAL_INPUT_WIDTH-1:0] in_data,
 	input [TOTAL_INPUT_WIDTH-1:0] in_weights,
 	input signed [DATA_WIDTH-1:0] in_bias,
+	input in_done, // the flag for the last partial sum
+	input in_cache_clear,
+	input [4:0] i_cache_rd_addr,
+	input [4:0] i_cache_wr_addr,
 
 	// outputs
 	output reg signed [DATA_WIDTH*2+4:0] out_psum_0,
@@ -47,26 +51,144 @@ generate
 	end
 endgenerate
 
-
 wire signed [DATA_WIDTH*2+4:0] psum_0, psum_1, psum_2, psum_3;
+wire signed [TOTAL_OUTPUT_WIDTH-1:0] total_sum;
+// reg signed [TOTAL_OUTPUT_WIDTH-1:0] local_psum;
 
 assign psum_0 = result[0] + result[1] + result[2] + result[3];
 assign psum_1 = result[4] + result[5] + result[6] + result[7];
 assign psum_2 = result[8] + result[9] + result[10] + result[11];
 assign psum_3 = result[12] + result[13] + result[14] + result[15];
 
+
+wire data_valid;
+
+reg [4:0] cache_wr_addr;
+reg [4:0] cache_rd_addr;
+reg signed [TOTAL_OUTPUT_WIDTH-1:0] cache_wr_data;
+wire signed [TOTAL_OUTPUT_WIDTH-1:0] cache_rd_data;
+
+
+always@(*) begin
+	cache_rd_addr = 5'bxxxxx;
+	cache_wr_addr = i_cache_wr_addr;
+	cache_rd_addr = i_cache_rd_addr;
+	if (in_done) cache_wr_data = 0;
+	else cache_wr_data = out_total_sum;
+end
+
+assign total_sum = psum_0 + psum_1 + psum_2 + psum_3 + in_bias + cache_rd_data;
+
 always @(posedge clk or negedge rst_n) begin
 	if (!rst_n) begin
 		// reset
 		out_total_sum <= 0;
+		out_psum_0 <= 0;
+		out_psum_1 <= 0;
+		out_psum_2 <= 0;
+		out_psum_3 <= 0;
 	end
 	else begin
-		out_total_sum <= psum_0 + psum_1 + psum_2 + psum_3 + in_bias;
+		// if (in_done) begin
+		// 	out_total_sum <= total_sum;
+		// 	local_psum <= 0;
+		// end
+		// else begin
+		// 	out_total_sum <= total_sum;
+		// 	local_psum <= total_sum;
+		// end
+		out_total_sum <= total_sum;
 		out_psum_0 <= psum_0;
 		out_psum_1 <= psum_1;
 		out_psum_2 <= psum_2;
 		out_psum_3 <= psum_3;
 	end
 end
+
+local_cache lc(
+	.rd_data(cache_rd_data),
+	.rd_addr(cache_rd_addr),
+	.wr_addr(cache_wr_addr),
+	.wr_data(cache_wr_data),
+	.wr_en(wr_en),
+	.clear(in_cache_clear),
+	.clk(clk)
+	);
+
+endmodule
+
+
+module local_cache
+#(parameter
+	DATA_WIDTH = 8,
+	NUM_MAC4 = 16,
+	TOTAL_INPUT_WIDTH = NUM_MAC4*4*DATA_WIDTH,
+	TOTAL_OUTPUT_WIDTH = DATA_WIDTH*2+6
+	)
+(
+   output reg [TOTAL_OUTPUT_WIDTH-1:0] rd_data, // Read output
+   input [4:0]       rd_addr, // Read address
+   input [4:0]       wr_addr,   // Write address
+   input [TOTAL_OUTPUT_WIDTH-1:0]      wr_data,   // Write data
+   input             wr_en,     // Write enable (high true)
+   input 			 clear,
+   input             clk        // Clock	
+);
+
+   // Register storage, 0~28 for adder tree, 29 for NB partial sum, 30 for A parameter for ACT, 31 for B parameter for ACT
+   reg [TOTAL_OUTPUT_WIDTH-1:0] REG [0:31];
+
+   // Read behavior
+   // - High Z if the address is greater than 12
+   always@ (*) begin
+      rd_data = REG[rd_addr];
+   end
+
+   // Write behavior
+   always @ (negedge clk or posedge clear) begin
+   	if (clear) begin
+   		REG[31]<=16'b0;
+		REG[30]<=16'b0;
+		REG[29]<=16'b0;
+		REG[28]<=16'b0;
+		REG[27]<=16'b0;
+		REG[26]<=16'b0;
+		REG[25]<=16'b0;
+		REG[24]<=16'b0;
+		REG[23]<=16'b0;
+		REG[22]<=16'b0;
+		REG[21]<=16'b0;
+		REG[20]<=16'b0;
+		REG[19]<=16'b0;
+		REG[18]<=16'b0;
+		REG[17]<=16'b0;
+		REG[16]<=16'b0;
+		REG[15]<=16'b0;
+		REG[14]<=16'b0;
+		REG[13]<=16'b0;
+		REG[12]<=16'b0;
+		REG[11]<=16'b0;
+		REG[10]<=16'b0;
+		REG[9]<=16'b0;
+		REG[8]<=16'b0;
+		REG[7]<=16'b0;
+		REG[6]<=16'b0;
+		REG[5]<=16'b0;
+		REG[4]<=16'b0;
+		REG[3]<=16'b0;
+		REG[2]<=16'b0;
+		REG[1]<=16'b0;
+		REG[0]<=16'b0;
+   	end
+   	else begin
+      // if ((wr_en == 1)) begin
+      //    REG[wr_addr] <= wr_data;
+      // end else begin
+      //    REG[wr_addr] <= REG[wr_addr];
+      // end
+      if(wr_en)
+      	REG[wr_addr] <= wr_data;
+    end
+   end
 
 endmodule
