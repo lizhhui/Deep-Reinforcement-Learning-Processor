@@ -42,6 +42,10 @@ def fc(inputs, weights):
 
 	return outputs
 
+def softmax(x):
+	# Compute softmax values for each number in x
+	return np.exp(x) / np.sum(np.exp(x), axis=0)
+
 
 def data_generate(i_size, w1_size, w2_size, o_size, nums):
 	# conv1 - conv2 - FC - o
@@ -76,9 +80,10 @@ def data_generate(i_size, w1_size, w2_size, o_size, nums):
 		inputs.append(i1)
 		i2 = conv(i1, w1_target) 
 		i3 = conv(i2, w2_target)
-		o = fc(i3, w3_target)
+		fc4 = fc(i3, w3_target)
+		o = softmax(fc4)
 		# o += np.random.normal(0,0.4,o.shape[0])
-		target.append(o)
+		target.append(fc4)
 		pass
 
 	return inputs, target
@@ -143,10 +148,8 @@ def train(inputs, target, i_size, w1_size, w2_size):
 		o_gd = o-t # deravetive of 0.5*(o-t)**2
 
 		# fc gradients
-		# o_gd = np.reshape(o_gd, (1,1,1,1))
 		w3_gd = i3*o_gd
 		i3_gd = w3*o_gd
-
 		w3_gd = np.reshape(w3_gd, (i3_nums, 1))
 		w3 -= lr*w3_gd
 
@@ -156,18 +159,15 @@ def train(inputs, target, i_size, w1_size, w2_size):
 			tmp = conv(i2[:,:,d].reshape((L2,L2,1)), i3_gd_rs) #
 			for i in range(0,K2):
 				w2_gd[i,:,:,d] = tmp[:,:,i]
-
-
 		w2_rs = np.zeros((D2, W2, W2, K2))
 		for i in range(0,K2):
 			for j in range(0,D2):
 				w2_rs[j,:,:,i] = w2[i,:,:,j] # w2 reshape
 		w2_rsrt = np.rot90(w2_rs,2) # rotate 180
-
 		pad_num = W2-1
-		i3_gd_pad = np.pad(np.reshape(i3_gd, ((L2-W2+1), (L2-W2+1), K2)), ((pad_num,pad_num), (pad_num,pad_num), (0,0)), 'constant')
+		i3_gd_pad = np.pad(np.reshape(i3_gd, ((L2-W2+1), (L2-W2+1), K2)), \
+			((pad_num,pad_num), (pad_num,pad_num), (0,0)), 'constant')
 		i2_gd = conv(i3_gd_pad, w2_rsrt)
-
 		w2 -= lr*w2_gd
 
 		# conv1 gradients
@@ -176,7 +176,6 @@ def train(inputs, target, i_size, w1_size, w2_size):
 			tmp = conv(i1[:,:,d].reshape((L1,L1,1)), i2_gd)
 			for i in range(0,K1):
 				w1_gd[i,:,:,d] = tmp[:,:,i]
-
 		w1 -= lr*w1_gd
 		
 		error = 0
