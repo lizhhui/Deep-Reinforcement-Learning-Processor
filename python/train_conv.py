@@ -63,19 +63,21 @@ def data_generate(i_size, w1_size, w2_size, o_size, nums):
 	i3_nums = (L2-W2+1)*(L2-W2+1)*K2 # FC inputs size
 
 	# target weights generate
-	w1_target = np.random.rand(K1, W1, W1, D1)
-	w2_target = np.random.rand(K2, W2, W2, D2)
-	w3_target = np.random.rand(i3_nums, o_size)
+	w1_target = (np.random.rand(K1, W1, W1, D1)-0.5)
+	w2_target = (np.random.rand(K2, W2, W2, D2)-0.5)
+	w3_target = (np.random.rand(i3_nums, o_size)-0.5)
 
 	inputs = list()
 	target = list()
 
 	for n in range(0,nums):
 		i1 = np.random.rand(i_size[0],i_size[1],i_size[2])
+		i1 = i1.astype(np.float64)
 		inputs.append(i1)
 		i2 = conv(i1, w1_target) 
 		i3 = conv(i2, w2_target)
 		o = fc(i3, w3_target)
+		# o += np.random.normal(0,0.4,o.shape[0])
 		target.append(o)
 		pass
 
@@ -97,32 +99,36 @@ def train(inputs, target, i_size, w1_size, w2_size):
 	i3_nums = (L2-W2+1)*(L2-W2+1)*K2 # FC inputs size
 
 	# weights randomly inialize
-	w1 = np.random.rand(K1, W1, W1, D1)
-	w2 = np.random.rand(K2, W2, W2, D2)
-	w3 = np.random.rand(i3_nums, 1)
+	w1 = (np.random.rand(K1, W1, W1, D1)-0.5)
+	w2 = (np.random.rand(K2, W2, W2, D2)-0.5)
+	w3 = (np.random.rand(i3_nums, 1)-0.5)
+	# w1 = np.zeros((K1, W1, W1, D1), dtype = np.float64)
+	# w2 = np.zeros((K2, W2, W2, D2), dtype = np.float64)
+	# w3 = np.zeros((i3_nums, 1), dtype = np.float64)
 
 	# weights gradients
-	w1_gd = np.zeros((K1, W1, W1, D1))
-	w2_gd = np.zeros((K2, W2, W2, D2))
-	w3_gd = np.zeros((i3_nums, 1))
+	w1_gd = np.zeros((K1, W1, W1, D1), dtype = np.float64)
+	w2_gd = np.zeros((K2, W2, W2, D2), dtype = np.float64)
+	w3_gd = np.zeros((i3_nums, 1), dtype = np.float64)
 
 	# inputs gradients
-	i3_gd = np.zeros((i3_nums,))
-	i2_gd = np.zeros((L2,L2,D2))
+	i3_gd = np.zeros((i3_nums,), dtype = np.float64)
+	i2_gd = np.zeros((L2,L2,D2), dtype = np.float64)
 
-	lr = 0.001 # learning rate
+	lr = 0.002 # learning rate
 
 	data_nums = len(target) # dataset size
 
-	bf_train = list()
+	bf_train = 0
 	for n in range(0,data_nums):
 		i2 = conv(inputs[n], w1) 
 		i3 = conv(i2, w2)
 		o = fc(i3, w3)
-		bf_train.append(o)
+		bf_train += (target[n]-o)**2
+	bf_train /= data_nums
 
 
-
+	af_train = list()
 	for n in range(0,data_nums):
 
 		# feed-forward propagation
@@ -172,13 +178,26 @@ def train(inputs, target, i_size, w1_size, w2_size):
 				w1_gd[i,:,:,d] = tmp[:,:,i]
 
 		w1 -= lr*w1_gd
-        
-	af_train = list()
+		
+		error = 0
+		for n in np.random.randint(data_nums,size=50):
+			i2 = conv(inputs[n], w1) 
+			i3 = conv(i2, w2)
+			o = fc(i3, w3)
+			error += (target[n]-o)**2
+		error /= 50
+		print(error)
+		af_train.append(error)
+
+	error = 0
 	for n in range(0,data_nums):
 		i2 = conv(inputs[n], w1) 
 		i3 = conv(i2, w2)
 		o = fc(i3, w3)
-		af_train.append(o)
+		error += (target[n]-o)**2
+	error /= data_nums
+
+	print(error)
 
 
 	return bf_train, af_train
