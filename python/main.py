@@ -1,11 +1,17 @@
 from train_conv import *
 import mnist
+import numpy as np
 
 # mnist.init()
-# x_train, t_train, x_test, t_test = mnist.load()
+x_train, t_train, x_test, t_test = mnist.load()
 
-# x_train=np.reshape(x_train,(60000,28,28,1))
-# x_test=np.reshape(x_test,(10000,28,28,1))
+x_train=np.reshape(x_train,(60000,28,28,1))
+x_test=np.reshape(x_test,(10000,28,28,1))
+
+c1_size = (8, 5, 5, 1)
+c2_size = (16, 5, 5, 8)
+f1_size = (256, 256)
+f2_size = (256, 10)
 
 
 # def inference(inputs, result):
@@ -64,4 +70,33 @@ for i in range(0,nums):
 	w2_gd, i2_gd = back_conv(x2, w2, back_relu(o2, o2_gd))
 	w2 -= lr*w2_gd
 	w1_gd, i1_gd = back_conv(inputs[x,:,:,:], w1, back_relu(o1 ,back_maxpool(i2_gd, x2_pos, 2)))
+	w1 -= lr*w1_gd
+
+
+c1 = (np.random.rand(c1_size[0],c1_size[1],c1_size[2],c1_size[3])-0.5)
+c2 = (np.random.rand(c2_size[0],c2_size[1],c2_size[2],c2_size[3])-0.5)
+f1 = (np.random.rand(f1_size[0], f1_size[1])-0.5)
+f2 = (np.random.rand(f2_size[0], f2_size[1])-0.5)
+
+# train, SGD
+lr = 0.001
+for i in range(0,nums):
+	x = np.random.randint(60000, size=1)[0]
+	o1, x2_pos, x2, o2, x3_pos, x3, o3, o = mnist_in(x_train[x,:,:,:], c1, c2, f1, f2)
+	label = t_train[x]
+	o_gd = back_ce(o, label)
+	f2_gd, i4_gd = back_fc(o3.flatten(), f2, o_gd)
+	f1_gd, i3_gd = back_fc(x3.flatten(), f1, i4_gd)
+	
+	o2_gdrs = np.reshape(i3_gd, (4,4,16))
+	o2_gd = back_maxpool(o2_gdrs, x3_pos, 2)
+	c2_gd, i2_gd = back_conv(x2, c2, back_relu(o2, o2_gd))
+
+	o1_gd = back_maxpool(i2_gd, x2_pos, 2)
+	c1_gd, i1_gd = back_conv(x_train[x,:,:,:], c1, back_relu(o1, o1_gd))
+	
+	
+	f2 -= lr*f2_gd
+	f1 -= lr*f1_gd
+	w3 -= lr*w3_gd
 	w1 -= lr*w1_gd

@@ -65,9 +65,11 @@ def fc(inputs, weights):
 			outputs[o] += inputs_ar[i]*weights[i,o]
 	return outputs
 
-def softmax(inputs):
+def softmax(x):
 	# Compute softmax values for each number in inputs (1-D array)
-	return np.exp(inputs) / np.sum(np.exp(inputs), axis=0)
+	shift_x = x - np.max(x)
+	exp_x = np.exp(shift_x)
+	return exp_x / np.sum(exp_x)
 
 
 def cross_entropy(outputs, label):
