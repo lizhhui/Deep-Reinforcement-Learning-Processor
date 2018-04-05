@@ -73,6 +73,44 @@ for i in range(0,nums):
 	w1 -= lr*w1_gd
 
 
+
+
+
+
+
+
+def mnist_in_only(inputs, w1, w2, w3, w4):
+	o1 = relu(conv(inputs, w1))
+	x2, x2_pos = max_pool(o1, 2)
+	o2 = relu(conv(x2, w2))
+	x3, x3_pos = max_pool(o2, 2)
+	o3 = fc(x3, w3)
+	o4 = fc(o3, w4)
+	results = softmax(o4)
+	return np.argmax(results)
+
+def mnist_in(inputs, w1, w2, w3, w4):
+	o1 = relu(conv(inputs, w1))
+	x2, x2_pos = max_pool(o1, 2)
+	o2 = relu(conv(x2, w2))
+	x3, x3_pos = max_pool(o2, 2)
+	o3 = fc(x3, w3)
+	o4 = fc(o3, w4)
+	results = softmax(o4)
+	return o1, x2_pos, x2, o2, x3_pos, x3, o3, results
+
+def evaluate_train(n, w1, w2, w3, w4):
+	hit = 0
+	for i in range(0,n):
+		x = np.random.randint(60000, size=1)[0]
+		y = mnist_in_only(x_train[x,:,:,:], w1, w2, w3, w4)
+		label = t_train[x]
+		if label == y:
+			hit += 1
+	return hit/n
+
+
+
 c1 = (np.random.rand(c1_size[0],c1_size[1],c1_size[2],c1_size[3])-0.5)
 c2 = (np.random.rand(c2_size[0],c2_size[1],c2_size[2],c2_size[3])-0.5)
 f1 = (np.random.rand(f1_size[0], f1_size[1])-0.5)
@@ -95,8 +133,13 @@ for i in range(0,nums):
 	o1_gd = back_maxpool(i2_gd, x2_pos, 2)
 	c1_gd, i1_gd = back_conv(x_train[x,:,:,:], c1, back_relu(o1, o1_gd))
 	
-	
 	f2 -= lr*f2_gd
 	f1 -= lr*f1_gd
-	w3 -= lr*w3_gd
-	w1 -= lr*w1_gd
+	c2 -= lr*c2_gd
+	c1 -= lr*c1_gd
+
+	if i%50==0:
+		print(evaluate_train(10, c1, c2, f1, f2))
+
+
+		
