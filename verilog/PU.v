@@ -17,11 +17,13 @@ module PU
 	input rst_n,
 
 	// to MAC_cluster
+	input in_mac_en,
 	input [TOTAL_INPUT_WIDTH-1:0] in_data,
 	input in_add_bias, // 1: add bias, 0: no bias
 	input in_relu, // 1: w/ relu, 0: w/o relu
 	input in_done, // the flag for the last partial sum
 	input in_cache_clear,
+	input in_cache_wr_en,
 	input [4:0] in_cache_rd_addr,
 	input [4:0] in_cache_wr_addr,
 
@@ -64,6 +66,7 @@ end
 MAC_cluster mac(
 	.clk(clk),
 	.rst_n(rst_n),
+	.in_en(in_mac_en),
 	.in_data(in_data),
 	.in_weights(weights),
 	.in_bias(bias),
@@ -71,6 +74,7 @@ MAC_cluster mac(
 	.in_relu(in_relu), // 1: w/ relu, 0: w/o relu
 	.in_done(in_done), // the flag for the last partial sum
 	.in_cache_clear(in_cache_clear),
+	.in_cache_wr_en(in_cache_wr_en),
 	.in_cache_rd_addr(in_cache_rd_addr),
 	.in_cache_wr_addr(in_cache_wr_addr),
 	.out_total_sum(out_total_sum)

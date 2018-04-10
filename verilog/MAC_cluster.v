@@ -13,6 +13,7 @@ module MAC_cluster
 	// inputs
 	input clk,
 	input rst_n,
+	input in_en,
 	input [TOTAL_INPUT_WIDTH-1:0] in_data,
 	input [TOTAL_INPUT_WIDTH-1:0] in_weights,
 	input signed [DATA_WIDTH-1:0] in_bias,
@@ -20,6 +21,7 @@ module MAC_cluster
 	input in_relu, // 1: w/ relu, 0: w/o relu
 	input in_done, // the flag for the last partial sum
 	input in_cache_clear,
+	input in_cache_wr_en,
 	input [4:0] in_cache_rd_addr,
 	input [4:0] in_cache_wr_addr,
 
@@ -54,7 +56,7 @@ generate
 endgenerate
 
 wire signed [DATA_WIDTH*2+4:0] psum_0, psum_1, psum_2, psum_3;
-wire signed [TOTAL_OUTPUT_WIDTH-1:0] total_sum;
+reg signed [TOTAL_OUTPUT_WIDTH-1:0] total_sum;
 // reg signed [TOTAL_OUTPUT_WIDTH-1:0] local_psum;
 
 assign psum_0 = result[0] + result[1] + result[2] + result[3];
@@ -77,7 +79,17 @@ wire signed [DATA_WIDTH-1:0] bias;
 // 	// else cache_wr_data = out_total_sum;
 // end
 assign bias = in_add_bias? in_bias:0;
-assign total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + cache_rd_data;
+
+always @(*) begin
+    if (~in_en) begin
+        total_sum = bias + cache_rd_data;
+    end
+    else begin
+    	total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + cache_rd_data;
+    end
+end
+
+// assign total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + cache_rd_data;
 
 always @(posedge clk or negedge rst_n) begin
 	if (!rst_n) begin
@@ -111,7 +123,7 @@ local_cache lc(
 	.rd_addr(in_cache_rd_addr),
 	.wr_addr(in_cache_wr_addr),
 	.wr_data(cache_wr_data),
-	.wr_en(wr_en),
+	.wr_en(in_cache_wr_en),
 	.clear(in_cache_clear),
 	.clk(clk)
 	);
@@ -145,8 +157,8 @@ module local_cache
    end
 
    // Write behavior
-   always @ (posedge clk or posedge clear) begin
-   	if (clear) begin
+   always @ (posedge clk or negedge clear) begin
+   	if (!clear) begin
    		REG[31]<=16'b0;
 		REG[30]<=16'b0;
 		REG[29]<=16'b0;
