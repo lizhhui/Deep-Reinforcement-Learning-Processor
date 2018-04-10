@@ -24,6 +24,7 @@ module MAC_cluster
 	input in_cache_wr_en,
 	input [4:0] in_cache_rd_addr,
 	input [4:0] in_cache_wr_addr,
+	input [TOTAL_OUTPUT_WIDTH-1:0] in_psum,
 
 	// outputs
 	// output reg signed [DATA_WIDTH*2+4:0] out_psum_0,
@@ -80,14 +81,23 @@ wire signed [DATA_WIDTH-1:0] bias;
 // end
 assign bias = in_add_bias? in_bias:0;
 
+
 always @(*) begin
     if (~in_en) begin
-        total_sum = bias + cache_rd_data;
+        total_sum = bias + in_psum;
     end
     else begin
-    	total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + cache_rd_data;
+    	total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + in_psum;
     end
 end
+// always @(*) begin
+//     if (~in_en) begin
+//         total_sum = bias + cache_rd_data;
+//     end
+//     else begin
+//     	total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + cache_rd_data;
+//     end
+// end
 
 // assign total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + cache_rd_data;
 

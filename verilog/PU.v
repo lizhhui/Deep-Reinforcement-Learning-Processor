@@ -48,6 +48,7 @@ module PU
 
 wire [TOTAL_INPUT_WIDTH-1:0] weights, all_bias;
 reg [DATA_WIDTH-1:0] bias;
+wire signed [TOTAL_OUTPUT_WIDTH-1:0] psum;
 
 always @(*) begin
 	case(in_bias_addr)
@@ -77,6 +78,7 @@ MAC_cluster mac(
 	.in_cache_wr_en(in_cache_wr_en),
 	.in_cache_rd_addr(in_cache_rd_addr),
 	.in_cache_wr_addr(in_cache_wr_addr),
+	.in_psum(out_rmem),
 	.out_total_sum(out_total_sum)
 	);
 
