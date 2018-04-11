@@ -97,21 +97,28 @@ initial begin
 	in_r_rd_en = 1'b0;   
 	in_r_rd_addr = 7'b0;
 
-	#40
-	@(posedge clk);
-	in_mac_en = 1'b1;
+	#48
   	in_w_wr_en = 1'b1;
 	in_w_wr_addr = 7'b0;
 	in_w_wr_data = 512'b1;
-	@(posedge clk);
+	#20
   	in_w_wr_en = 1'b1;
 	in_w_wr_addr = 7'b1;
 	in_w_wr_data = 512'b1;
-	@(posedge clk);
+	#20
 	in_w_wr_en = 1'b0;
+	in_mac_en = 1'b1;
 	in_data = 512'b1;
-	in_cache_wr_en = 1'b1;
-	@(posedge clk);
+	in_r_rd_en = 1'b0;
+	in_r_wr_en = 1'b1;
+	in_r_wr_addr = 7'd0;
+	#20
+	in_data = 512'b1;
+	in_r_rd_en = 1'b1;
+	in_r_rd_addr = 7'b0;
+	in_r_wr_en = 1'b1;
+	in_r_wr_addr = 7'd1;
+	#20
 	in_mac_en = 1'b0;
 	in_cache_wr_en = 1'b0;
 

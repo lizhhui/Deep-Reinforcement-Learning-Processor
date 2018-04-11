@@ -57,7 +57,7 @@ generate
 endgenerate
 
 wire signed [DATA_WIDTH*2+4:0] psum_0, psum_1, psum_2, psum_3;
-reg signed [TOTAL_OUTPUT_WIDTH-1:0] total_sum;
+wire signed [TOTAL_OUTPUT_WIDTH-1:0] total_sum;
 // reg signed [TOTAL_OUTPUT_WIDTH-1:0] local_psum;
 
 assign psum_0 = result[0] + result[1] + result[2] + result[3];
@@ -81,13 +81,16 @@ wire signed [DATA_WIDTH-1:0] bias;
 // end
 assign bias = in_add_bias? in_bias:0;
 
+assign total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + in_psum;
 
 always @(*) begin
-    if (~in_en) begin
-        total_sum = bias + in_psum;
-    end
+    if (~in_en) 
+    	out_total_sum = bias + in_psum;
     else begin
-    	total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + in_psum;
+	    if (in_relu) 
+	    	out_total_sum = (total_sum>0)?total_sum:0;
+	    else 
+	    	out_total_sum = total_sum;
     end
 end
 // always @(*) begin
@@ -101,32 +104,32 @@ end
 
 // assign total_sum = psum_0 + psum_1 + psum_2 + psum_3 + bias + cache_rd_data;
 
-always @(posedge clk or negedge rst_n) begin
-	if (!rst_n) begin
-		// reset
-		out_total_sum <= 0;
-		// out_psum_0 <= 0;
-		// out_psum_1 <= 0;
-		// out_psum_2 <= 0;
-		// out_psum_3 <= 0;
-	end
-	else begin
-		if (in_done) begin
-			if (in_relu) out_total_sum <= (total_sum>0)? total_sum : 0;
-			else out_total_sum <= total_sum;
-			cache_wr_data <= 0;
-		end
-		else begin
-			out_total_sum <= total_sum;
-			cache_wr_data <= total_sum;
-		end
-		// out_total_sum <= total_sum;
-		// out_psum_0 <= psum_0;
-		// out_psum_1 <= psum_1;
-		// out_psum_2 <= psum_2;
-		// out_psum_3 <= psum_3;
-	end
-end
+// always @(posedge clk or negedge rst_n) begin
+// 	if (!rst_n) begin
+// 		// reset
+// 		out_total_sum <= 0;
+// 		// out_psum_0 <= 0;
+// 		// out_psum_1 <= 0;
+// 		// out_psum_2 <= 0;
+// 		// out_psum_3 <= 0;
+// 	end
+// 	else begin
+// 		if (in_done) begin
+// 			if (in_relu) out_total_sum <= (total_sum>0)? total_sum : 0;
+// 			else out_total_sum <= total_sum;
+// 			cache_wr_data <= 0;
+// 		end
+// 		else begin
+// 			out_total_sum <= total_sum;
+// 			cache_wr_data <= total_sum;
+// 		end
+// 		// out_total_sum <= total_sum;
+// 		// out_psum_0 <= psum_0;
+// 		// out_psum_1 <= psum_1;
+// 		// out_psum_2 <= psum_2;
+// 		// out_psum_3 <= psum_3;
+// 	end
+// end
 
 local_cache lc(
 	.rd_data(cache_rd_data),
