@@ -1,18 +1,18 @@
 // wgt_rf
-// for a row
+// for a ROW
 
 module wgt_rf
 #(parameter
   DATA_WIDTH = 8,
-	NUM_ROW = 6,
-  TOTAL_WIDTH = DATA_WIDTH*NUM_ROW
+	ROW_NUM = 6,
+  ROW_WGT_WIDTH = DATA_WIDTH*ROW_NUM
 	)
 (
   input i_clk, 
   input i_wr_en,
-  input [TOTAL_WIDTH-1:0] i_wgt_row,  
+  input [ROW_WGT_WIDTH-1:0] i_wgt_row,  
 
-  output reg [TOTAL_WIDTH-1:0] o_wgt_row
+  output reg [ROW_WGT_WIDTH-1:0] o_wgt_row
 );
 
 
