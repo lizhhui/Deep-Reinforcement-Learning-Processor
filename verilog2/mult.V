@@ -1,6 +1,6 @@
-// MAC
+// mult
 
-module MAC
+module mult
 #(parameter
 	DATA_WIDTH = 8,
 	OUT_WIDTH = 2*DATA_WIDTH

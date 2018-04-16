@@ -23,7 +23,7 @@ module MAC_column
 		genvar i;
 		for (i = 0; i < COLUMN_NUM; i = i + 1)
 		begin: one_MAC_colum
-			MAC(
+			mult mult_inst(
 				.i_img(i_img_column[(i+1)*DATA_WIDTH-1:i*DATA_WIDTH]),
 				.i_wgt(i_wgt_column[(i+1)*DATA_WIDTH-1:i*DATA_WIDTH]),
 				.o_psum(MAC_psum[i])
