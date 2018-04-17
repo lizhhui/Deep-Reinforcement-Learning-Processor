@@ -19,24 +19,24 @@ module pmem_fake
   input [ADDR_WIDTH-1:0] i_rd_addr1, 
     
   //output
-  output wire [DATA_WIDTH-1:0] o_rd_data0,
-  output wire [DATA_WIDTH-1:0] o_rd_data1
+  output reg [DATA_WIDTH-1:0] o_rd_data0,
+  output reg [DATA_WIDTH-1:0] o_rd_data1
 );
 
 
 // Here for the fake memory, only 16 will be implemented
 reg [DATA_WIDTH-1:0] REG [0:15];
 
-// Read behavior
-assign o_rd_data0 = i_rd_en? REG[i_rd_addr0] : 0;
-assign o_rd_data1 = i_rd_en? REG[i_rd_addr1] : 0;
-
-
-// Write behavior
 always @ (posedge i_clk) begin
  	if(i_wr_en) begin
+    // Write behavior
     REG[i_wr_addr0] <= i_wr_data0;
     REG[i_wr_addr1] <= i_wr_data1;
+  end
+  else begin
+    // Read behavior
+    o_rd_data0 <= REG[i_rd_addr0];
+    o_rd_data1 <= REG[i_rd_addr1];
   end
 end
 

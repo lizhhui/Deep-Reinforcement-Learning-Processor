@@ -34,9 +34,9 @@ module PE
 	input [PMEM_ADDR_WIDTH-1:0] i_pmem_rd_addr0,
 	input [PMEM_ADDR_WIDTH-1:0] i_pmem_rd_addr1,
 
-	input i_wmem_wr_en,
+	input [COLUMN_NUM-1:0] i_wmem_wr_en,
 	input [WMEM_ADDR_WIDTH-1:0] i_wmem_wr_addr,
-	input [TOTAL_IN_WIDTH-1:0] i_wmem_wr_data,
+	input [ROW_DATA_WIDTH-1:0] i_wmem_wr_data,
 	input [WMEM_ADDR_WIDTH-1:0] i_wmem_rd_addr,
 	input i_update_wgt,
 
@@ -62,15 +62,19 @@ module PE
 	wire [ROW_DATA_WIDTH-1:0] wrf_out[0:ROW_NUM-1];
 	reg [ROW_DATA_WIDTH-1:0] wrf_out_cir[0:ROW_NUM-1];
 	reg [ROW_DATA_WIDTH-1:0] wrf_out_shift[0:ROW_NUM-1];
+
+
+
 	generate
 		genvar i;
 		for (i = 0; i < COLUMN_NUM; i = i + 1)
 		begin: row_wgt
 			wmem_fake wmem(
 				.i_clk(i_clk), 
-				.i_wr_en(i_wmem_wr_en),
+				.i_wr_en(i_wmem_wr_en[i]),
 				.i_wr_addr(i_wmem_wr_addr),
-				.i_wr_data(i_wmem_wr_data[(i+1)*ROW_DATA_WIDTH-1:i*ROW_DATA_WIDTH]), 
+				// .i_wr_data(i_wmem_wr_data[(i+1)*ROW_DATA_WIDTH-1:i*ROW_DATA_WIDTH]), 
+				.i_wr_data(i_wmem_wr_data), 
 				.i_rd_en(1'b1),   
 				.i_rd_addr(i_wmem_rd_addr), 
 				.o_bias(),
@@ -87,10 +91,6 @@ module PE
 
 			always@(*) begin
 				case (i_mode)
-					// 2'b00: begin
-					// 	if (i_3x3_sel) wrf_out_cir[i] = {wrf_out[i][ROW_DATA_WIDTH-1:(ROW_NUM/2)*DATA_WIDTH],wrf_out[i][ROW_DATA_WIDTH-1:(ROW_NUM/2)*DATA_WIDTH]};
-					// 	else wrf_out_cir[i] = {wrf_out[i][(ROW_NUM/2)*DATA_WIDTH-1:0],wrf_out[i][(ROW_NUM/2)*DATA_WIDTH-1:0]};
-					// end
 					2'b00: wrf_out_cir[i] = wrf_out[i];
 					2'b01: wrf_out_cir[i] = {wrf_out[i][DATA_WIDTH*2-1:0],wrf_out[i][DATA_WIDTH*4-1:0]};
 					2'b10: wrf_out_cir[i] = {wrf_out[i][DATA_WIDTH-1:0],wrf_out[i][DATA_WIDTH*5-1:0]};
@@ -98,15 +98,31 @@ module PE
 					default: wrf_out_cir[i] = wrf_out[i];
 				endcase
 
-				case (i_wgt_shift)
-					3'd0: wrf_out_shift[i] = wrf_out_cir[i];
-					3'd1: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 8;
-					3'd2: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 16;
-					3'd3: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 24;
-					3'd4: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 32;
-					3'd5: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 40;
-					default: wrf_out_shift[i] = wrf_out_cir[i];
-				endcase
+				if (i_mode ==2'b00) begin
+					case (i_wgt_shift)
+						3'd0: begin
+							wrf_out_cir[i][23:0] = {wrf_out_cir[i][23:0],wrf_out_cir[i][23:0]}>>8;
+							wrf_out_cir[i][47:24] = {wrf_out_cir[i][47:24],wrf_out_cir[i][47:24]>>8;
+						end
+						// 3'd1: begin
+						// 	wrf_out_cir[i][23:0] = {wrf_out_cir[i][23:0],wrf_out_cir[i][23:0]}>>16;
+						// 	wrf_out_cir[i][47:24] = {wrf_out_cir[i][47:24],wrf_out_cir[i][47:24]>>16;
+						// end
+						default: wrf_out_shift[i] = wrf_out_cir[i];
+					endcase
+
+				end
+				else begin
+					case (i_wgt_shift)
+						3'd0: wrf_out_shift[i] = wrf_out_cir[i];
+						3'd1: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 8;
+						3'd2: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 16;
+						3'd3: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 24;
+						3'd4: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 32;
+						3'd5: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 40;
+						default: wrf_out_shift[i] = wrf_out_cir[i];
+					endcase
+				end
 			end
 		end
 	endgenerate
@@ -156,9 +172,11 @@ module PE
 
 	wire signed [COLUMN_DATA_WIDTH:0] bias0; // 20b
 	wire signed [COLUMN_DATA_WIDTH:0] bias1;
+	wire signed [COLUMN_DATA_WIDTH:0] bias2;
 	
 	reg signed [COLUMN_DATA_WIDTH:0] psum0; // 20b
 	reg signed [COLUMN_DATA_WIDTH:0] psum1;
+	reg signed [COLUMN_DATA_WIDTH:0] psum_rf;
 
 	wire signed [DATA_WIDTH-1:0] psum0_pre;
 	wire signed [DATA_WIDTH-1:0] psum1_pre;
@@ -338,6 +356,15 @@ module PE
 				psum1_truncated = 8'b0111_1111;
 		end
 	end
+
+	psum_rf prf(
+		.i_clk(i_clk), 
+		.i_wr_en(),
+		.i_wr_addr(),
+		.i_wr_data(),   
+		.i_rd_addr(),
+		.o_rd_data()
+		);
 
 
 	pmem_fake pmem(

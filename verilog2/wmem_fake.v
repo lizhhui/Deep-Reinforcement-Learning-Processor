@@ -16,20 +16,18 @@ module wmem_fake
   input [ADDR_WIDTH-1:0] i_rd_addr, 
 
   output wire [ROW_WGT_WIDTH-1:0] o_bias,
-  output wire [ROW_WGT_WIDTH-1:0] o_rd_data
+  output reh [ROW_WGT_WIDTH-1:0] o_rd_data
 );
 
 
 // Here for the fake memory, only 4 will be implemented
 reg [ROW_WGT_WIDTH-1:0] REG [0:3];
 
-// Read behavior
-assign o_rd_data = i_rd_en? REG[i_rd_addr] : 0;
 assign o_bias = REG[3];
 
-// Write behavior
 always @ (posedge i_clk) begin
- 	if(i_wr_en) REG[i_wr_addr] <= i_wr_data;
+ 	if(i_wr_en) REG[i_wr_addr] <= i_wr_data; // Write behavior
+  else o_rd_data <= REG[i_rd_addr]; // Read behavior
 end
 
 endmodule

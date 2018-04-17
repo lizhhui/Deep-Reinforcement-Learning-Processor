@@ -58,7 +58,7 @@ module nn
 	wire [PMEM_ADDR_WIDTH-1:0] pmem_rd_addr0;
 	wire [PMEM_ADDR_WIDTH-1:0] pmem_rd_addr1;
 
-	wire wmem_wr_en;
+	wire [COLUMN_NUM-1:0] wmem_wr_en;
 	wire [WMEM_ADDR_WIDTH-1:0] wmem_wr_addr;
 	wire [TOTAL_IN_WIDTH-1:0] wmem_wr_data;
 	wire [WMEM_ADDR_WIDTH-1:0] wmem_rd_addr;
@@ -85,7 +85,7 @@ module nn
 		.i_out_w(out_w),
 		.i_out_c(out_c),
 
-		.o_wgt_shift(),
+		.o_wgt_shift(wgt_shift),
 
 		);
 	
