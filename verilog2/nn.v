@@ -64,6 +64,17 @@ module nn
 	wire [WMEM_ADDR_WIDTH-1:0] wmem_rd_addr;
 	wire update_wgt;
 
+
+
+	wire [IMEM_ADDR_WIDTH-1:0] img_bf_wr_addr;
+	wire [IMEM_DATA_WIDTH-1:0] img_bf_wr_data;
+	wire [IMEM_ADDR_WIDTH-1:0] img_bf_rd_addr;
+
+	wire shift;
+	wire sel_3x3;
+
+	wire wmem0_state, wmem1_state;
+
 	nn_cfg cfg(
 		.i_clk(i_clk),
 		.i_cfg(i_cfg),
@@ -79,13 +90,43 @@ module nn
 	nn_fsm fsm(
 		.i_clk(i_clk),
 		.i_rst(i_rst),
+		.i_start(i_start),
 		.i_mode(mode),
 		.i_stirde(stride),
 		.i_img_c(img_c),
 		.i_out_w(out_w),
 		.i_out_c(out_c),
+		.i_img_wr_count(),//????
+		.i_dma_rd_data(i_dma_rd_data),
+		.o_img_bf_wr_addr(img_bf_wr_addr),
+		.o_img_bf_wr_data(img_bf_wr_data),
+		.o_img_bf_rd_addr(img_bf_rd_addr),
+		.o_shift(shift),
+		.o_3x3(sel_3x3),
+		.o_wmem0_state(wmem0_state), // 0: to be wrote; 1: to be read
+		.o_wmem1_state(wmem1_state), // 0: to be wrote; 1: to be read
+		.o_wmem_wr_en(wmem_wr_en),
+		.o_wmem_wr_addr(wmem_wr_addr),
+		.o_wmem_wr_data(wmem_wr_data),
+		.o_wmem_rd_addr(wmem_rd_addr),
 
 		.o_wgt_shift(wgt_shift),
+		.o_bias_sel(), // 0: add bias; 1: add psum ???
+
+		.o_psum_shift(), // ??????
+		.o_bias(),
+		.o_update_bias(), //???????
+
+		.o_pmem_wr_en0,
+		.o_pmem_wr_en1,
+		.o_pmem_rd_en0,
+		.o_pmem_rd_en1,
+		.o_pmem_wr_addr0(pmem_wr_addr0),
+		.o_pmem_wr_addr1(pmem_wr_addr1),
+		.o_pmem_rd_addr0(pmem_rd_addr0),
+		.o_pmem_rd_addr1(pmem_rd_addr1),
+
+		.o_update_wgt(update_wgt)
 
 		);
 	
@@ -106,9 +147,9 @@ module nn
 		.i_clk(i_clk),
 		.i_rst(i_rst),
 		.i_data(new_img_row),
-		.i_shift(),
-		.i_mode(),
-		.i_3x3(),
+		.i_shift(shift),
+		.i_mode(mode),
+		.i_3x3(sel_3x3),
 		.o_img(img)
 		);
 
@@ -127,7 +168,10 @@ module nn
 		.i_bias_sel(bias_sel), // 0: add bias; 1: add psum
 
 
-		.i_pmem_wr_en(pmem_wr_en),
+		.i_pmem_wr_en0(pmem_wr_en0),
+		.i_pmem_wr_en1(pmem_wr_en1),
+		.i_pmem_rd_en0(pmem_rd_en0),
+		.i_pmem_rd_en1(pmem_rd_en1),
 		.i_pmem_wr_addr0(pmem_wr_addr0),
 		.i_pmem_wr_addr1(pmem_wr_addr1),
 		.i_pmem_rd_addr0(pmem_rd_addr0),

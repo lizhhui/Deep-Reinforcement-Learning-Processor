@@ -28,7 +28,10 @@ module PE
 	input i_bias_sel, // 0: add bias; 1: add psum
 
 
-	input i_pmem_wr_en,
+	input i_pmem_wr_en0,
+	input i_pmem_wr_en1,
+	input i_pmem_rd_en0,
+	input i_pmem_rd_en1,
 	input [PMEM_ADDR_WIDTH-1:0] i_pmem_wr_addr0,
 	input [PMEM_ADDR_WIDTH-1:0] i_pmem_wr_addr1,
 	input [PMEM_ADDR_WIDTH-1:0] i_pmem_rd_addr0,
@@ -60,7 +63,8 @@ module PE
 
 	wire [ROW_DATA_WIDTH-1:0] wmem2rf[0:ROW_NUM-1];
 	wire [ROW_DATA_WIDTH-1:0] wrf_out[0:ROW_NUM-1];
-	reg [ROW_DATA_WIDTH-1:0] wrf_out_cir[0:ROW_NUM-1];
+	wire [DATA_WIDTH-1:0] wrf_split[0:COLUMN_NUM-1];
+	// reg [ROW_DATA_WIDTH*2-1:0] wrf_out_cir[0:ROW_NUM-1];
 	reg [ROW_DATA_WIDTH-1:0] wrf_out_shift[0:ROW_NUM-1];
 
 
@@ -88,42 +92,91 @@ module PE
 				.o_wgt_row(wrf_out[i])
 				);
 
+			assign wrf_split[0] = wrf_out[i][DATA_WIDTH-1:0];
+			assign wrf_split[1] = wrf_out[i][DATA_WIDTH*2-1:DATA_WIDTH*1];
+			assign wrf_split[2] = wrf_out[i][DATA_WIDTH*3-1:DATA_WIDTH*2];
+			assign wrf_split[3] = wrf_out[i][DATA_WIDTH*4-1:DATA_WIDTH*3];
+			assign wrf_split[4] = wrf_out[i][DATA_WIDTH*5-1:DATA_WIDTH*4];
+			assign wrf_split[5] = wrf_out[i][DATA_WIDTH*6-1:DATA_WIDTH*5];
 
 			always@(*) begin
 				case (i_mode)
-					2'b00: wrf_out_cir[i] = wrf_out[i];
-					2'b01: wrf_out_cir[i] = {wrf_out[i][DATA_WIDTH*2-1:0],wrf_out[i][DATA_WIDTH*4-1:0]};
-					2'b10: wrf_out_cir[i] = {wrf_out[i][DATA_WIDTH-1:0],wrf_out[i][DATA_WIDTH*5-1:0]};
-					2'b11: wrf_out_cir[i] = wrf_out[i];
-					default: wrf_out_cir[i] = wrf_out[i];
+					2'b00: begin
+						case (i_wgt_shift)
+						3'd0: wrf_out_shift[i] = {wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[5]};
+						3'd1: wrf_out_shift[i] = {wrf_split[2],wrf_split[0],wrf_split[1],wrf_split[5],wrf_split[3],wrf_split[4]};
+						3'd2: wrf_out_shift[i] = {wrf_split[1],wrf_split[2],wrf_split[0],wrf_split[4],wrf_split[5],wrf_split[3]};
+						default: wrf_out_shift[i] = {wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[5]};
+						endcase
+					end
+					2'b01: begin
+						case (i_wgt_shift)
+						3'd0: wrf_out_shift[i] = {wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[0],wrf_split[1]};
+						3'd1: wrf_out_shift[i] = {wrf_split[3],wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[0]};
+						3'd2: wrf_out_shift[i] = {wrf_split[2],wrf_split[3],wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3]};
+						3'd3: wrf_out_shift[i] = {wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[0],wrf_split[1],wrf_split[2]};
+						default: wrf_out_shift[i] = {wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[5]};
+						endcase
+					end
+					2'b10: begin
+						case (i_wgt_shift)
+						3'd0: wrf_out_shift[i] = {wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[0]};
+						3'd1: wrf_out_shift[i] = {wrf_split[4],wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4]};
+						3'd2: wrf_out_shift[i] = {wrf_split[3],wrf_split[4],wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3]};
+						3'd3: wrf_out_shift[i] = {wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[0],wrf_split[1],wrf_split[2]};
+						3'd4: wrf_out_shift[i] = {wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[0],wrf_split[1]};
+						default: wrf_out_shift[i] = {wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[5]};
+						endcase
+					end
+					2'b11: begin
+						case (i_wgt_shift)
+						3'd0: wrf_out_shift[i] = {wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[5]};
+						3'd1: wrf_out_shift[i] = {wrf_split[5],wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4]};
+						3'd2: wrf_out_shift[i] = {wrf_split[4],wrf_split[5],wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3]};
+						3'd3: wrf_out_shift[i] = {wrf_split[3],wrf_split[4],wrf_split[5],wrf_split[0],wrf_split[1],wrf_split[2]};
+						3'd4: wrf_out_shift[i] = {wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[5],wrf_split[0],wrf_split[1]};
+						3'd5: wrf_out_shift[i] = {wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[5],wrf_split[0]};
+						default: wrf_out_shift[i] = {wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[5]};
+						endcase
+					end
+					default: wrf_out_shift[i] = {wrf_split[0],wrf_split[1],wrf_split[2],wrf_split[3],wrf_split[4],wrf_split[5]};
 				endcase
-
-				if (i_mode ==2'b00) begin
-					case (i_wgt_shift)
-						3'd0: begin
-							wrf_out_cir[i][23:0] = {wrf_out_cir[i][23:0],wrf_out_cir[i][23:0]}>>8;
-							wrf_out_cir[i][47:24] = {wrf_out_cir[i][47:24],wrf_out_cir[i][47:24]>>8;
-						end
-						// 3'd1: begin
-						// 	wrf_out_cir[i][23:0] = {wrf_out_cir[i][23:0],wrf_out_cir[i][23:0]}>>16;
-						// 	wrf_out_cir[i][47:24] = {wrf_out_cir[i][47:24],wrf_out_cir[i][47:24]>>16;
-						// end
-						default: wrf_out_shift[i] = wrf_out_cir[i];
-					endcase
-
-				end
-				else begin
-					case (i_wgt_shift)
-						3'd0: wrf_out_shift[i] = wrf_out_cir[i];
-						3'd1: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 8;
-						3'd2: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 16;
-						3'd3: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 24;
-						3'd4: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 32;
-						3'd5: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 40;
-						default: wrf_out_shift[i] = wrf_out_cir[i];
-					endcase
-				end
 			end
+			// always@(*) begin
+			// 	case (i_mode)
+			// 		2'b00: wrf_out_cir[i] = {wrf_out[i],wrf_out[i]};
+			// 		2'b01: wrf_out_cir[i] = {wrf_out[i][DATA_WIDTH*2-1:0],wrf_out[i][DATA_WIDTH*4-1:0]};
+			// 		2'b10: wrf_out_cir[i] = {wrf_out[i][DATA_WIDTH-1:0],wrf_out[i][DATA_WIDTH*5-1:0]};
+			// 		2'b11: wrf_out_cir[i] = wrf_out[i];
+			// 		default: wrf_out_cir[i] = wrf_out[i];
+			// 	endcase
+
+			// 	if (i_mode ==2'b00) begin
+			// 		case (i_wgt_shift)
+			// 			3'd0: begin
+			// 				wrf_out_cir[i][23:0] = {wrf_out_cir[i][23:0],wrf_out_cir[i][23:0]}>>8;
+			// 				wrf_out_cir[i][47:24] = {wrf_out_cir[i][47:24],wrf_out_cir[i][47:24]>>8;
+			// 			end
+			// 			// 3'd1: begin
+			// 			// 	wrf_out_cir[i][23:0] = {wrf_out_cir[i][23:0],wrf_out_cir[i][23:0]}>>16;
+			// 			// 	wrf_out_cir[i][47:24] = {wrf_out_cir[i][47:24],wrf_out_cir[i][47:24]>>16;
+			// 			// end
+			// 			default: wrf_out_shift[i] = wrf_out_cir[i];
+			// 		endcase
+
+			// 	end
+			// 	else begin
+			// 		case (i_wgt_shift)
+			// 			3'd0: wrf_out_shift[i] = wrf_out_cir[i];
+			// 			3'd1: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 8;
+			// 			3'd2: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 16;
+			// 			3'd3: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 24;
+			// 			3'd4: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 32;
+			// 			3'd5: wrf_out_shift[i] = {wrf_out_cir[i],wrf_out_cir[i]} >> 40;
+			// 			default: wrf_out_shift[i] = wrf_out_cir[i];
+			// 		endcase
+			// 	end
+			// end
 		end
 	endgenerate
 
@@ -176,7 +229,7 @@ module PE
 	
 	reg signed [COLUMN_DATA_WIDTH:0] psum0; // 20b
 	reg signed [COLUMN_DATA_WIDTH:0] psum1;
-	reg signed [COLUMN_DATA_WIDTH:0] psum_rf;
+	reg signed [COLUMN_DATA_WIDTH:0] psum2;
 
 	wire signed [DATA_WIDTH-1:0] psum0_pre;
 	wire signed [DATA_WIDTH-1:0] psum1_pre;
@@ -186,6 +239,7 @@ module PE
 
 
 	always@(*) begin
+
 		case (i_mode)
 			2'b00: begin
 				case (i_wgt_shift)
@@ -212,25 +266,26 @@ module PE
 				endcase		
 			end
 			2'b01: begin
+				// 4x4
 				case (i_wgt_shift)
 					3'd0: begin
 						psum0 = psum_column[0]+psum_column[1]+psum_column[2]+psum_column[3]+bias0;
-						psum1 = psum_column[4]+psum_column[5]+bias1;
+						psum1 = bias1;
 						// psum2 = bias2;
 					end
 					3'd1: begin
-						psum0 = psum_column[0]+psum_column[1]+psum_column[2]+psum_column[3]+bias0;
-						psum1 = bias1;
+						psum0 = psum_column[0]+bias0;
+						psum1 = psum_column[1]+psum_column[2]+psum_column[3]+bias1;
 						// psum2 = psum_column[5]+bias2;
 					end
 					3'd2: begin
 						psum0 = psum_column[0]+psum_column[1]+bias0;
-						psum1 = psum_column[2]+psum_column[3]+psum_column[4]+psum_column[5]+bias1;
+						psum1 = psum_column[2]+psum_column[3]+bias1;
 						// psum2 = bias2;
 					end
 					3'd3: begin
-						psum0 = psum_column[1]+psum_column[2]+bias0;
-						psum1 = psum_column[3]+psum_column[4]+bias1;
+						psum0 = psum_column[0]+psum_column[1]+psum_column[2]+bias0;
+						psum1 = psum_column[4]+bias1;
 						// psum2 = bias2;
 					end
 					default: begin
@@ -357,29 +412,37 @@ module PE
 		end
 	end
 
-	psum_rf prf(
-		.i_clk(i_clk), 
-		.i_wr_en(),
-		.i_wr_addr(),
-		.i_wr_data(),   
-		.i_rd_addr(),
-		.o_rd_data()
-		);
+	// psum_rf prf(
+	// 	.i_clk(i_clk), 
+	// 	.i_wr_en(),
+	// 	.i_wr_addr(),
+	// 	.i_wr_data(),   
+	// 	.i_rd_addr(),
+	// 	.o_rd_data()
+	// 	);
 
 
-	pmem_fake pmem(
+	pmem_fake pmem0(
 	  .i_clk(i_clk), 
-	  .i_wr_en(i_pmem_wr_en),
-	  .i_wr_addr0(i_pmem_wr_addr0),
-	  .i_wr_data0(psum0_truncated),
-	  .i_wr_addr1(i_pmem_wr_addr1),
-	  .i_wr_data1(psum1_truncated), 
-	  .i_rd_en(1'b1),   
-	  .i_rd_addr0(i_pmem_rd_addr0),
-	  .i_rd_addr1(i_pmem_rd_addr1), 
-	  .o_rd_data0(psum0_pre),
-	  .o_rd_data1(psum1_pre)
+	  .i_wr_en(i_pmem_wr_en0),
+	  .i_rd_en(i_pmem_rd_en0),
+	  .i_wr_addr(i_pmem_wr_addr),
+	  .i_wr_data(psum0_truncated),
+	  .i_rd_addr(i_pmem_rd_addr0),
+	  .o_rd_data(psum0_pre)
 	);
+
+	pmem_fake pmem1(
+	  .i_clk(i_clk), 
+	  .i_wr_en(i_pmem_wr_en1),
+	  .i_rd_en(i_pmem_rd_en1),
+	  .i_wr_addr(i_pmem_wr_addr),
+	  .i_wr_data(psum1_truncated),
+	  .i_rd_addr(i_pmem_rd_addr1),
+	  .o_rd_data(psum1_pre)
+	);
+
+
 
 
 	assign o_result0 = psum0_pre;

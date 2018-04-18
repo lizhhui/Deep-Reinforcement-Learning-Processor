@@ -10,34 +10,32 @@ module pmem_fake
   // inputs
   input i_clk, 
   input i_wr_en,
-  input [ADDR_WIDTH-1:0] i_wr_addr0,
-  input [DATA_WIDTH-1:0] i_wr_data0, 
-  input [ADDR_WIDTH-1:0] i_wr_addr1,
-  input [DATA_WIDTH-1:0] i_wr_data1, 
-  input i_rd_en,   
-  input [ADDR_WIDTH-1:0] i_rd_addr0,
-  input [ADDR_WIDTH-1:0] i_rd_addr1, 
+  input i_rd_en, 
+  input [ADDR_WIDTH-1:0] i_wr_addr,
+  input [DATA_WIDTH-1:0] i_wr_data,   
+  input [ADDR_WIDTH-1:0] i_rd_addr,
     
   //output
-  output reg [DATA_WIDTH-1:0] o_rd_data0,
-  output reg [DATA_WIDTH-1:0] o_rd_data1
+  output wire [DATA_WIDTH-1:0] o_rd_data
 );
 
 
 // Here for the fake memory, only 16 will be implemented
 reg [DATA_WIDTH-1:0] REG [0:15];
+reg [ADDR_WIDTH-1:0] rd_addr;
 
 always @ (posedge i_clk) begin
- 	if(i_wr_en) begin
+ 	if(i_rd_en) 
+     rd_addr <= i_rd_addr;
+end
+
+assign o_rd_data = REG[rd_addr];
+
+
+always @ (posedge i_clk) begin
+  if(i_wr_en) 
     // Write behavior
-    REG[i_wr_addr0] <= i_wr_data0;
-    REG[i_wr_addr1] <= i_wr_data1;
-  end
-  else begin
-    // Read behavior
-    o_rd_data0 <= REG[i_rd_addr0];
-    o_rd_data1 <= REG[i_rd_addr1];
-  end
+    REG[i_wr_addr] <= i_wr_data;
 end
 
 endmodule
