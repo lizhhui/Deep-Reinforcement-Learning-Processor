@@ -26,7 +26,7 @@ module nn_sld_rf
 		if (~i_rst) begin
 			o_img <= 0;
 		end
-		else if (shift) begin
+		else if (i_shift) begin
 			case (i_mode)
 				2'b00: begin
 					if (i_3x3)

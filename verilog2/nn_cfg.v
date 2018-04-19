@@ -2,8 +2,8 @@
 
 module nn_cfg(
 	input i_clk,
-	input i_cfg,
-	input i_addr,
+	input [15:0] i_cfg,
+	input [1:0] i_addr,
 	input i_wr_en,
 	output wire [15:0] o_cfg0,
 	output wire [15:0] o_cfg1,

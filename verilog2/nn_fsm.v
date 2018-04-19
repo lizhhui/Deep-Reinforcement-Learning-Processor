@@ -3,7 +3,7 @@
 module nn_fsm
 #(parameter
 	DATA_WIDTH = 8,
-	DMA_ADDR_WIDTH = 10,
+	DMA_ADDR_WIDTH = 6,
 	COLUMN_NUM = 6,
 	ROW_NUM = 6,
 	PMEM_ADDR_WIDTH = 8,
@@ -24,19 +24,21 @@ module nn_fsm
 	input i_start,
 
 	// from configuration registers
-	input [2:0] i_mode,
+	input [1:0] i_mode,
 	input [3:0] i_stride,
 	input [8:0] i_img_c,
 	input [7:0] i_out_w,
 	input [7:0] i_out_c,
-
+	input [DMA_ADDR_WIDTH-1:0] i_dma_img_base_addr,
+	input [DMA_ADDR_WIDTH-1:0] i_dma_wgt_base_addr,
 	input [IMEM_ADDR_WIDTH-1:0] i_img_wr_count,
-
-	// from PE
 	
 
 	// from DMA
 	input [15:0] i_dma_rd_data,
+
+	output reg o_dma_rd_en,
+	output reg [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr,
 
 	output reg o_img_bf_wr_en,
 	output reg [IMEM_ADDR_WIDTH-1:0] o_img_bf_wr_addr,
@@ -84,10 +86,11 @@ module nn_fsm
 
 	reg change;
 	reg [1:0] wr_flag;
-	reg [IMEM_ADDR_WIDTH-1:0] img_wr_count;
+	reg [IMEM_ADDR_WIDTH-1:0] img_wr_count; // check with o_img_bf_wr_addr
 	reg [5:0] wgt_wr_count;
 
 	reg [COLUMN_NUM-1:0] wmem_wr_which;
+	reg [COLUMN_NUM-1:0] wmem_wr_row_end;
 
 	reg [7:0] out_y_count;
 	reg [7:0] out_x_count;
@@ -121,15 +124,19 @@ module nn_fsm
 		else begin
 			case (status)
 				RESET: begin
-					o_img_bf_wr_addr <= 0;
+					o_dma_rd_addr <= 0;
+					o_dma_rd_en <= 0;
+					o_img_bf_wr_addr <= 10'b11_1111_1111;
 					o_img_bf_wr_data <= 0;
 					o_img_bf_wr_en <= 0;
+					o_img_bf_rd_addr <= 10'b11_1111_1111;
 					wr_flag <= 2'b00;
 					img_wr_count <= 0;
 					wgt_wr_count <= 0;
 					o_wmem0_state <= 0;
 					o_wmem1_state <= 0;
 					wmem_wr_which <= 6'b0000_01;
+					wmem_wr_row_end <= 0;
 					o_wmem_wr_addr <= 0;
 					out_y_count <= 0;
 					out_x_count <= 0;
@@ -145,7 +152,9 @@ module nn_fsm
 					psum_sel <= 0; 
 					o_wmem_rd_addr <= 0; 
 					if (i_start) begin
-						status <= 2'b01;
+						status <= WRIBF;
+						o_dma_rd_addr <= i_dma_img_base_addr;
+						o_dma_rd_en <= 1;
 						// initial psum_base_addr
 						psum_base_addr[0] <= 0;
 						psum_base_addr[1] <= i_out_w;
@@ -158,30 +167,39 @@ module nn_fsm
 				end
 
 				WRIBF: begin
-					o_img_bf_wr_addr <= o_img_bf_wr_addr + 1'b1;
-					if (wr_flag==2'b00) begin
-						wr_flag <= 2'b01;
-						o_img_bf_wr_data[15:0] <= i_dma_rd_data;
-						o_img_bf_wr_en <= 0;
-					end
-					else if (wr_flag==2'b01) begin
-						wr_flag <= 2'b10;
-						o_img_bf_wr_data[31:16] <= i_dma_rd_data;
-					end
-					else if (wr_flag==2'b10) begin
-						wr_flag <= 2'b00;
-						o_img_bf_wr_data[47:32] <= i_dma_rd_data;
-						o_img_bf_wr_en <= 1;
 
-						if (img_wr_count == i_img_wr_count) begin
-							img_wr_count <= 0;
-							status <= 2'b01;
-						end
-						else 
-							img_wr_count <= img_wr_count+1'b1;
+					if (img_wr_count == i_img_wr_count) begin
+						img_wr_count <= 0;
+						// o_dma_rd_en <= 0;
+						o_img_bf_wr_en <= 0;
+						o_dma_rd_addr <= i_dma_wgt_base_addr;
+						status <= COMPT;
 					end
 					else begin
-						o_img_bf_wr_en <= 0;
+						o_dma_rd_addr <= o_dma_rd_addr+1;
+						if (wr_flag==2'b00) begin
+							wr_flag <= 2'b01;
+							o_img_bf_wr_data[15:0] <= i_dma_rd_data;
+							o_img_bf_wr_en <= 0;
+						end
+						else if (wr_flag==2'b01) begin
+							wr_flag <= 2'b10;
+							o_img_bf_wr_data[31:16] <= i_dma_rd_data;
+						end
+						else if (wr_flag==2'b10) begin
+							wr_flag <= 2'b00;
+							o_img_bf_wr_data[47:32] <= i_dma_rd_data;
+							o_img_bf_wr_en <= 1;
+							case (i_mode)
+								2'b00: wmem_wr_row_end <= 6'b10_0000;
+								2'b01: wmem_wr_row_end <= 6'b00_1000;
+								2'b10: wmem_wr_row_end <= 6'b01_0000;
+								2'b11: wmem_wr_row_end <= 6'b10_0000;
+							endcase
+
+							o_img_bf_wr_addr <= o_img_bf_wr_addr + 1'b1;
+							img_wr_count <= img_wr_count+1'b1;
+						end
 					end
 				end
 
@@ -198,24 +216,27 @@ module nn_fsm
 						if (o_wmem0_state==0 || o_wmem1_state==0) begin 
 							
 							if (wr_flag==2'b00) begin
+								o_dma_rd_addr <= o_dma_rd_addr+1;
 								wr_flag <= 2'b01;
 								o_wmem_wr_data[15:0] <= i_dma_rd_data;
 								o_wmem_wr_en <= 0;
 							end
 							else if (wr_flag==2'b01) begin
+								o_dma_rd_addr <= o_dma_rd_addr+1;
 								wr_flag <= 2'b10;
 								o_wmem_wr_data[31:16] <= i_dma_rd_data;
 								o_wmem_wr_en <= 0;
 							end
 							else if (wr_flag==2'b10) begin
+								o_dma_rd_addr <= o_dma_rd_addr+1;
 								wr_flag <= 2'b00;
 								o_wmem_wr_data[47:32] <= i_dma_rd_data;
 								o_wmem_wr_en <= wmem_wr_which;
-								if (wmem_wr_which == 6'b1000_00) begin
+
+								if (wmem_wr_which == wmem_wr_row_end) begin
 									wmem_wr_which <= 6'b0000_01;
 									wgt_wr_count <= wgt_wr_count+1'b1;
-									if ( (o_wmem_wr_addr == 127) || 
-										((wgt_wr_count+1'b1) == i_img_c) ) begin
+									if ( (o_wmem_wr_addr == 127) || ((wgt_wr_count+1'b1) == i_img_c) ) begin
 										o_wmem_wr_addr <= 0;
 										if (o_wmem0_state==0) begin
 											o_wmem0_state <= 1; // wmem0 to be read
@@ -235,6 +256,7 @@ module nn_fsm
 								else begin
 									wmem_wr_which <= wmem_wr_which << 1;
 								end
+
 							end			
 						end
 					end
@@ -243,7 +265,8 @@ module nn_fsm
 					if (o_wmem0_state==1 || o_wmem1_state==1) begin
 						if (in_c_count < i_img_c) begin
 							if (out_x_count < i_out_w) begin
-								o_update_wgt <= 0;
+								
+								o_update_wgt <= (out_x_count==0)?1:0;
 								if (out_y_count < i_out_w) begin
 									case(i_mode)
 										2'b00: begin
@@ -252,6 +275,7 @@ module nn_fsm
 												o_3x3 <= sld_count[0]; // slide high || low
 												o_shift <= 1;
 												sld_count <= sld_count+1'b1;
+												o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
 											end
 											else begin
 												// sliding rf is full, do the computation
@@ -301,8 +325,10 @@ module nn_fsm
 														o_pmem_rd_addr0 <= psum_base_addr[2];
 														o_pmem_rd_addr0 <= psum_base_addr[2];
 														wgt_shift_count <= 0;
+
+														sld_count <= sld_count-2;
 													end
-													sld_count <= sld_count-2;
+													
 												end
 											end
 
@@ -313,6 +339,7 @@ module nn_fsm
 											if (sld_count<3'd4) begin
 												o_shift <= 1;
 												sld_count <= sld_count+1'b1;
+												o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
 											end
 											else begin 
 												o_shift <= 0;
@@ -395,6 +422,7 @@ module nn_fsm
 											if (sld_count<3'd5) begin
 												o_shift <= 1;
 												sld_count <= sld_count+1'b1;
+												o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
 											end
 											else begin 
 												o_shift <= 0;
@@ -495,6 +523,7 @@ module nn_fsm
 											if (sld_count<3'd6) begin
 												o_shift <= 1;
 												sld_count <= sld_count+1'b1;
+												o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
 											end
 											else begin 
 												if (i_stride==4'd1) begin
