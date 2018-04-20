@@ -209,7 +209,7 @@ module PE
 						 wrf_out_shift[1][DATA_WIDTH*6-1:DATA_WIDTH*5], wrf_out_shift[0][DATA_WIDTH*6-1:DATA_WIDTH*5]};
 	end
 
-	wire signed [COLUMN_DATA_WIDTH-1:0] psum_column[0:ROW_NUM-1];
+	wire signed [COLUMN_OUT_WIDTH-1:0] psum_column[0:ROW_NUM-1];
 
 	generate
 		genvar ic;
@@ -223,13 +223,13 @@ module PE
 		end
 	endgenerate
 
-	wire signed [COLUMN_DATA_WIDTH:0] bias0; // 20b
-	wire signed [COLUMN_DATA_WIDTH:0] bias1;
-	wire signed [COLUMN_DATA_WIDTH:0] bias2;
+	wire signed [COLUMN_OUT_WIDTH:0] bias0; // 20b
+	wire signed [COLUMN_OUT_WIDTH:0] bias1;
+	wire signed [COLUMN_OUT_WIDTH:0] bias2;
 	
-	reg signed [COLUMN_DATA_WIDTH:0] psum0; // 20b
-	reg signed [COLUMN_DATA_WIDTH:0] psum1;
-	reg signed [COLUMN_DATA_WIDTH:0] psum2;
+	reg signed [COLUMN_OUT_WIDTH:0] psum0; // 20b
+	reg signed [COLUMN_OUT_WIDTH:0] psum1;
+	reg signed [COLUMN_OUT_WIDTH:0] psum2;
 
 	wire signed [DATA_WIDTH-1:0] psum0_pre;
 	wire signed [DATA_WIDTH-1:0] psum1_pre;
@@ -376,8 +376,8 @@ module PE
 		endcase
 	end
 
-	reg signed [COLUMN_DATA_WIDTH:0] psum0_shifted; // 20b
-	reg signed [COLUMN_DATA_WIDTH:0] psum1_shifted;
+	reg signed [COLUMN_OUT_WIDTH:0] psum0_shifted; // 20b
+	reg signed [COLUMN_OUT_WIDTH:0] psum1_shifted;
 
 	reg signed [DATA_WIDTH-1:0] psum0_truncated;
 	reg signed [DATA_WIDTH-1:0] psum1_truncated;
@@ -385,27 +385,27 @@ module PE
 	always @(*) begin
 		psum0_shifted = psum0 >>> i_psum_shift;
 		psum1_shifted = psum1 >>> i_psum_shift;
-		if (psum0_shifted[COLUMN_DATA_WIDTH]) begin
-			if (&(psum0_shifted[COLUMN_DATA_WIDTH:DATA_WIDTH-1]))
+		if (psum0_shifted[COLUMN_OUT_WIDTH]) begin
+			if (&(psum0_shifted[COLUMN_OUT_WIDTH:DATA_WIDTH-1]))
 				psum0_truncated = psum0_shifted[DATA_WIDTH-1:0];
 			else 
 				psum0_truncated = 8'b1000_0000;
 		end
 		else begin
-			if(~(|(psum0_shifted[COLUMN_DATA_WIDTH:DATA_WIDTH-1])))
+			if(~(|(psum0_shifted[COLUMN_OUT_WIDTH:DATA_WIDTH-1])))
 				psum0_truncated = psum0_shifted[DATA_WIDTH-1:0];
 
 			else
 				psum0_truncated = 8'b0111_1111;
 		end
-		if (psum1_shifted[COLUMN_DATA_WIDTH]) begin
-			if (&(psum1_shifted[COLUMN_DATA_WIDTH:DATA_WIDTH-1]))
+		if (psum1_shifted[COLUMN_OUT_WIDTH]) begin
+			if (&(psum1_shifted[COLUMN_OUT_WIDTH:DATA_WIDTH-1]))
 				psum1_truncated = psum1_shifted[DATA_WIDTH-1:0];
 			else
 				psum1_truncated = 8'b1000_0000;
 		end
 		else begin
-			if(~(|(psum1_shifted[COLUMN_DATA_WIDTH:DATA_WIDTH-1])))
+			if(~(|(psum1_shifted[COLUMN_OUT_WIDTH:DATA_WIDTH-1])))
 				psum1_truncated = psum1_shifted[DATA_WIDTH-1:0];
 			else
 				psum1_truncated = 8'b0111_1111;
@@ -426,7 +426,7 @@ module PE
 	  .i_clk(i_clk), 
 	  .i_wr_en(i_pmem_wr_en0),
 	  .i_rd_en(i_pmem_rd_en0),
-	  .i_wr_addr(i_pmem_wr_addr),
+	  .i_wr_addr(i_pmem_wr_addr0),
 	  .i_wr_data(psum0_truncated),
 	  .i_rd_addr(i_pmem_rd_addr0),
 	  .o_rd_data(psum0_pre)
@@ -436,7 +436,7 @@ module PE
 	  .i_clk(i_clk), 
 	  .i_wr_en(i_pmem_wr_en1),
 	  .i_rd_en(i_pmem_rd_en1),
-	  .i_wr_addr(i_pmem_wr_addr),
+	  .i_wr_addr(i_pmem_wr_addr1),
 	  .i_wr_data(psum1_truncated),
 	  .i_rd_addr(i_pmem_rd_addr1),
 	  .o_rd_data(psum1_pre)

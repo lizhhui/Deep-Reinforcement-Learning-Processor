@@ -77,7 +77,7 @@ initial begin
 	// out width: 2; # output channel: 2
 
 	#20
-	cfg = 16'b0000001_000000_000;
+	cfg = 16'b000_0000_000000_000;
 	cfg_addr = 2'b10;
 	cfg_wr_en = 1;
 

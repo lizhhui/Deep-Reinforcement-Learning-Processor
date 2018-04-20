@@ -1,7 +1,7 @@
 module nn
 #(parameter
 	DATA_WIDTH = 8,
-	DMA_ADDR_WIDTH = 6,
+	DMA_ADDR_WIDTH = 5,
 	COLUMN_NUM = 6,
 	ROW_NUM = 6,
 	PMEM_ADDR_WIDTH = 8,
@@ -35,22 +35,26 @@ module nn
 
 	);
 
-	wire [2:0] mode; // 2'd0: 4-3x3, 2'd1: 4x4, 2'd2: 5x5, 2'd3: 6x6
-	wire [3:0] stride;
-	wire [8:0] img_c;
-	wire [7:0] out_w;
-	wire [7:0] out_c;
-	wire [DMA_ADDR_WIDTH-1:0] dma_img_base_addr;
-	wire [DMA_ADDR_WIDTH-1:0] dma_wgt_base_addr;
-	wire [IMEM_ADDR_WIDTH-1:0] img_wr_count;
+	wire [1:0] mode; // 2'd0: 4-3x3, 2'd1: 4x4, 2'd2: 5x5, 2'd3: 6x6
 	wire [1:0] pool; // 0: wo/pool; 1: 2x2 pool; 2: 3x3 pool; 3: 4x4 pool
 	wire relu; // 1: w/relu; 0: wo/relu
-	wire [7:0] TBD;
+	wire [2:0] stride;
+	wire [3:0] psum_shift;
+	wire [3:0] TBD0;
+
+	wire [6:0] zmove;
+	wire [5:0] xmove;
+	wire [6:0] ymove;
+	wire [DMA_ADDR_WIDTH-1:0] dma_img_base_addr;
+	wire [DMA_ADDR_WIDTH-1:0] dma_wgt_base_addr;
+	wire [15:0] img_wr_count;
+	
+	
+	wire [2:0] TBD;
 
 
 	wire [2:0] wgt_shift; // shift RIGHT how many 8 bits
 
-	wire [3:0] psum_shift;
 	wire [DATA_WIDTH-1:0] bias;
 	wire update_bias;
 	wire bias_sel; // 0: add bias; 1: add psum
@@ -88,10 +92,10 @@ module nn
 		.i_cfg(i_cfg),
 		.i_addr(i_cfg_addr),
 		.i_wr_en(i_cfg_wr_en),
-		.o_cfg0({mode,stride,img_c}),
-		.o_cfg1({out_w,out_c}),
-		.o_cfg2({TBD,dma_wgt_base_addr,pool,relu}),
-		.o_cfg3({img_wr_count,dma_img_base_addr})
+		.o_cfg0({pool, relu, stride, psum_shift, TBD0}),
+		.o_cfg1({xmove,ymove}),
+		.o_cfg2({TBD,psum_shift,dma_wgt_base_addr,pool,relu}),
+		.o_cfg3(img_wr_count)
 		);
 
 
@@ -101,9 +105,9 @@ module nn
 		.i_start(i_start),
 		.i_mode(mode[1:0]),
 		.i_stride(stride),
-		.i_img_c(img_c),
-		.i_out_w(out_w),
-		.i_out_c(out_c),
+		.i_zmove(zmove),
+		.i_xmove(xmove),
+		.i_ymove(ymove),
 		.i_dma_img_base_addr(dma_img_base_addr),
 		.i_dma_wgt_base_addr(dma_wgt_base_addr),
 		.i_img_wr_count(img_wr_count),
@@ -126,11 +130,11 @@ module nn
 		.o_wmem_rd_addr(wmem_rd_addr),
 
 		.o_wgt_shift(wgt_shift),
-		.o_bias_sel(), // 0: add bias; 1: add psum ???
+		// .o_psum_shift(), // ??????
 
-		.o_psum_shift(), // ??????
-		.o_bias(),
-		.o_update_bias(), //???????
+		.o_bias_sel(bias_sel), // 0: add bias; 1: add psum ???
+		.o_bias(bias),
+		.o_update_bias(update_bias), //???????
 
 		.o_pmem_wr_en0(pmem_wr_en0),
 		.o_pmem_wr_en1(pmem_wr_en1),
@@ -179,8 +183,8 @@ module nn
 
 
 		.i_psum_shift(psum_shift),
-		.i_bias(),
-		.i_update_bias(),
+		.i_bias(bias),
+		.i_update_bias(update_bias),
 		.i_bias_sel(bias_sel), // 0: add bias; 1: add psum
 
 

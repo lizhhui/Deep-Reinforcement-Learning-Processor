@@ -26,8 +26,8 @@ module nn_fsm
 	// from configuration registers
 	input [1:0] i_mode,
 	input [3:0] i_stride,
-	input [8:0] i_img_c,
-	input [7:0] i_out_w,
+	input [6:0] i_zmove,
+	input [7:0] i_xmove,
 	input [7:0] i_out_c,
 	input [DMA_ADDR_WIDTH-1:0] i_dma_img_base_addr,
 	input [DMA_ADDR_WIDTH-1:0] i_dma_wgt_base_addr,
@@ -58,9 +58,9 @@ module nn_fsm
 
 
 	output reg [2:0] o_wgt_shift,
-	output reg o_bias_sel, // 0: add bias; 1: add psum
+	// output reg [3:0] o_psum_shift,
 
-	output reg [3:0] o_psum_shift,
+	output reg o_bias_sel, // 0: add bias; 1: add psum
 	output reg [DATA_WIDTH-1:0] o_bias,
 	output reg o_update_bias,
 
@@ -151,17 +151,24 @@ module nn_fsm
 					// psum_base_addr <= 0;
 					psum_sel <= 0; 
 					o_wmem_rd_addr <= 0; 
+					o_update_wgt <= 0;
+
+					o_bias <= 0;
+					o_bias_sel <= 0;
+					o_update_bias <= 0;
+
+					o_wgt_shift <= 0;
 					if (i_start) begin
 						status <= WRIBF;
 						o_dma_rd_addr <= i_dma_img_base_addr;
 						o_dma_rd_en <= 1;
 						// initial psum_base_addr
 						psum_base_addr[0] <= 0;
-						psum_base_addr[1] <= i_out_w;
-						psum_base_addr[2] <= i_out_w<<1;
-						psum_base_addr[3] <= i_out_w+(i_out_w<<1);
-						psum_base_addr[4] <= i_out_w<<2;
-						psum_base_addr[5] <= i_out_w+(i_out_w<<2);
+						psum_base_addr[1] <= i_ymove;
+						psum_base_addr[2] <= i_ymove<<1;
+						psum_base_addr[3] <= i_ymove+(i_ymove<<1);
+						psum_base_addr[4] <= i_ymove<<2;
+						psum_base_addr[5] <= i_ymove+(i_ymove<<2);
 						in_c_count <= 0;
 					end			
 				end
@@ -207,7 +214,7 @@ module nn_fsm
 					o_img_bf_wr_en <= 0;
 
 					// Write weight buffer
-					if (wgt_wr_count == i_img_c) begin
+					if (wgt_wr_count == i_zmove) begin
 						// wgt_wr_count <= 0;
 						o_wmem_wr_en <= 0;
 						o_wmem_wr_addr <= 0;
@@ -236,7 +243,7 @@ module nn_fsm
 								if (wmem_wr_which == wmem_wr_row_end) begin
 									wmem_wr_which <= 6'b0000_01;
 									wgt_wr_count <= wgt_wr_count+1'b1;
-									if ( (o_wmem_wr_addr == 127) || ((wgt_wr_count+1'b1) == i_img_c) ) begin
+									if ( (o_wmem_wr_addr == 127) || ((wgt_wr_count+1'b1) == i_zmove) ) begin
 										o_wmem_wr_addr <= 0;
 										if (o_wmem0_state==0) begin
 											o_wmem0_state <= 1; // wmem0 to be read
@@ -261,12 +268,55 @@ module nn_fsm
 						end
 					end
 					
-					// Sliding and computing
 					if (o_wmem0_state==1 || o_wmem1_state==1) begin
-						if (in_c_count < i_img_c) begin
-							if (out_x_count < i_out_w) begin
+						if ((out_x_count+1)==i_xmove && (out_y_count)) begin
+							in_c_count <= in_c_count+1;
+						end
+						in_c_count
+						out_x_count
+
+
+						
+					end
+					
+				end
+
+				BURST: begin
+					
+				end
+			endcase
+		end
+	end
+
+endmodule
+
+
+
+
+
+
+
+
+
+
+// Sliding and computing
+					if (o_wmem0_state==1 || o_wmem1_state==1) begin
+
+						o_bias_sel <= (in_c_count==0)?0:1;
+						
+						if (in_c_count==0 && out_x_count==0 && out_y_count==0 && wgt_shift_count==0 && o_update_bias ==0) begin
+							o_update_bias <= 1;
+							o_bias <= i_dma_rd_data;
+							o_dma_rd_en <= 1;
+						end
+						else if (in_c_count < i_img_c) begin
+							o_update_bias <= 0;
+							if (out_x_count==0 && out_y_count==0 && wgt_shift_count==0 && o_update_wgt==0) begin
+								o_update_wgt <= 1;
+							end
+							else if (out_x_count < i_out_w) begin
 								
-								o_update_wgt <= (out_x_count==0)?1:0;
+								o_update_wgt <= 0;
 								if (out_y_count < i_out_w) begin
 									case(i_mode)
 										2'b00: begin
@@ -327,6 +377,7 @@ module nn_fsm
 														wgt_shift_count <= 0;
 
 														sld_count <= sld_count-2;
+														out_y_count <= out_y_count+1;
 													end
 													
 												end
@@ -656,16 +707,3 @@ module nn_fsm
 							else if (o_wmem1_state) o_wmem1_state <= 0;
 						end
 					end
-				end
-
-				BURST: begin
-					
-				end
-			endcase
-		end
-	end
-
-endmodule
-
-
-
