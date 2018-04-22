@@ -27,7 +27,7 @@ module PE
 	input i_update_bias,
 	input i_bias_sel, // 0: add bias; 1: add psum
 
-
+	input i_psum_sel,
 	input i_pmem_wr_en0,
 	input i_pmem_wr_en1,
 	input i_pmem_rd_en0,
@@ -225,14 +225,18 @@ module PE
 
 	wire signed [COLUMN_OUT_WIDTH:0] bias0; // 20b
 	wire signed [COLUMN_OUT_WIDTH:0] bias1;
-	wire signed [COLUMN_OUT_WIDTH:0] bias2;
 	
 	reg signed [COLUMN_OUT_WIDTH:0] psum0; // 20b
 	reg signed [COLUMN_OUT_WIDTH:0] psum1;
-	reg signed [COLUMN_OUT_WIDTH:0] psum2;
+
+	wire signed [DATA_WIDTH-1:0] psum0_rd;
+	wire signed [DATA_WIDTH-1:0] psum1_rd;
 
 	wire signed [DATA_WIDTH-1:0] psum0_pre;
 	wire signed [DATA_WIDTH-1:0] psum1_pre;
+
+	assign psum0_pre = i_psum_sel?psum0_rd:psum1_rd;
+	assign psum1_pre = i_psum_sel?psum1_rd:psum0_rd;
 
 	assign bias0 = i_bias_sel? (psum0_pre<<<i_psum_shift):bias_reg;
 	assign bias1 = i_bias_sel? (psum1_pre<<<i_psum_shift):bias_reg;
@@ -383,8 +387,15 @@ module PE
 	reg signed [DATA_WIDTH-1:0] psum1_truncated;
 
 	always @(*) begin
-		psum0_shifted = psum0 >>> i_psum_shift;
-		psum1_shifted = psum1 >>> i_psum_shift;
+		if (~i_psum_sel) begin
+			psum0_shifted = psum0 >>> i_psum_shift;
+			psum1_shifted = psum1 >>> i_psum_shift;
+		end
+		else begin
+			psum0_shifted = psum1 >>> i_psum_shift;
+			psum1_shifted = psum0 >>> i_psum_shift;
+		end
+
 		if (psum0_shifted[COLUMN_OUT_WIDTH]) begin
 			if (&(psum0_shifted[COLUMN_OUT_WIDTH:DATA_WIDTH-1]))
 				psum0_truncated = psum0_shifted[DATA_WIDTH-1:0];
@@ -429,7 +440,7 @@ module PE
 	  .i_wr_addr(i_pmem_wr_addr0),
 	  .i_wr_data(psum0_truncated),
 	  .i_rd_addr(i_pmem_rd_addr0),
-	  .o_rd_data(psum0_pre)
+	  .o_rd_data(psum0_rd)
 	);
 
 	pmem_fake pmem1(
@@ -439,14 +450,14 @@ module PE
 	  .i_wr_addr(i_pmem_wr_addr1),
 	  .i_wr_data(psum1_truncated),
 	  .i_rd_addr(i_pmem_rd_addr1),
-	  .o_rd_data(psum1_pre)
+	  .o_rd_data(psum1_rd)
 	);
 
 
 
 
-	assign o_result0 = psum0_pre;
-	assign o_result1 = psum1_pre;
+	assign o_result0 = psum0_rd;
+	assign o_result1 = psum1_rd;
 
 
 endmodule

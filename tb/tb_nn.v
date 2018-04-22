@@ -8,7 +8,9 @@ reg cfg_wr_en;
 
 reg start;
 
-wire [5:0] dma_wr_addr;
+reg dma_rd_ready;
+
+wire [4:0] dma_wr_addr;
 wire dma_wr_en;
 wire [15:0] dma_wr_data;
 wire dma_rd_en;
@@ -23,9 +25,10 @@ nn nn_inst(
 	.i_cfg(cfg),
 	.i_cfg_addr(cfg_addr),
 	.i_cfg_wr_en(cfg_wr_en),
-	.i_dma_rd_data(dma_rd_data),
 
 	.i_start(start),
+	.i_dma_rd_data(dma_rd_data),
+	.i_dma_rd_ready(dma_rd_ready),
 
 	.o_dma_wr_addr(dma_wr_addr),
 	.o_dma_wr_en(dma_wr_en),
@@ -48,6 +51,7 @@ dram dram_inst(
 initial begin
 	clk = 1'b0;
 	rst_n = 1'b1;
+	dma_rd_ready <= 1;
 	
 	repeat(2) #10 clk = ~clk;
 	rst_n = 1'b0;
@@ -65,24 +69,23 @@ initial begin
 	cfg_wr_en = 0;
 
 	#45
-	cfg = 16'b000_0001_000000100;
+	cfg = 16'b00_00_0_001_0000_0000;
 	cfg_addr = 2'b00;
 	cfg_wr_en = 1;
-	// mode: 4-3x3; stride: 1; # input channel: 4
+	// mode: 4-3x3; stride: 1
 
 	#20
-	cfg = 16'b00000010_00000001;
+	cfg = 16'b0000000_0000001_00;
 	cfg_addr = 2'b01;
 	cfg_wr_en = 1;
-	// out width: 2; # output channel: 2
 
 	#20
-	cfg = 16'b000_0000_000000_000;
+	cfg = 16'b00000_00000_000001;
 	cfg_addr = 2'b10;
 	cfg_wr_en = 1;
 
 	#20
-	cfg = {10'd64, 6'd0};
+	cfg = 16'd64;
 	cfg_addr = 2'b11;
 	cfg_wr_en = 1;
 	

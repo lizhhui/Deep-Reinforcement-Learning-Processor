@@ -3,7 +3,7 @@
 module nn_fsm
 #(parameter
 	DATA_WIDTH = 8,
-	DMA_ADDR_WIDTH = 6,
+	DMA_ADDR_WIDTH = 5,
 	COLUMN_NUM = 6,
 	ROW_NUM = 6,
 	PMEM_ADDR_WIDTH = 8,
@@ -25,10 +25,10 @@ module nn_fsm
 
 	// from configuration registers
 	input [1:0] i_mode,
-	input [3:0] i_stride,
+	input [2:0] i_stride,
 	input [6:0] i_zmove,
-	input [7:0] i_xmove,
-	input [7:0] i_out_c,
+	input [5:0] i_xmove,
+	input [6:0] i_ymove,
 	input [DMA_ADDR_WIDTH-1:0] i_dma_img_base_addr,
 	input [DMA_ADDR_WIDTH-1:0] i_dma_wgt_base_addr,
 	input [IMEM_ADDR_WIDTH-1:0] i_img_wr_count,
@@ -36,6 +36,7 @@ module nn_fsm
 
 	// from DMA
 	input [15:0] i_dma_rd_data,
+	input i_dma_rd_ready,
 
 	output reg o_dma_rd_en,
 	output reg [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr,
@@ -63,6 +64,8 @@ module nn_fsm
 	output reg o_bias_sel, // 0: add bias; 1: add psum
 	output reg [DATA_WIDTH-1:0] o_bias,
 	output reg o_update_bias,
+
+	output o_psum_sel,
 
 	output reg o_pmem_wr_en0,
 	output reg o_pmem_wr_en1,
@@ -92,10 +95,9 @@ module nn_fsm
 	reg [COLUMN_NUM-1:0] wmem_wr_which;
 	reg [COLUMN_NUM-1:0] wmem_wr_row_end;
 
-	reg [7:0] out_y_count;
-	reg [7:0] out_x_count;
-	reg [8:0] in_c_count;
-	reg [7:0] out_c_count;
+	reg [6:0] ymove_count;
+	reg [5:0] xmove_count;
+	reg [6:0] zmove_count;
 
 	reg [2:0] sld_count;
 
@@ -103,9 +105,10 @@ module nn_fsm
 
 	reg [PMEM_ADDR_WIDTH-1:0] psum_base_addr [0:5];
 
-	reg psum_sel;
 
+	reg compute_statrt;
 
+	reg wgt_shift_finish;
 
 	// always @(posedge i_clk || negedge i_rst) begin
 	// 	if (~i_rst) begin
@@ -115,6 +118,8 @@ module nn_fsm
 	// 		status <= status + 1'b1;
 	// 	end
 	// end
+
+	assign o_psum_sel = xmove_count[0];
 
 	always @(posedge i_clk or negedge i_rst) begin
 		if (~i_rst) begin
@@ -138,10 +143,9 @@ module nn_fsm
 					wmem_wr_which <= 6'b0000_01;
 					wmem_wr_row_end <= 0;
 					o_wmem_wr_addr <= 0;
-					out_y_count <= 0;
-					out_x_count <= 0;
-					in_c_count <= 0;
-					out_c_count <= 0;
+					ymove_count <= 0;
+					xmove_count <= 0;
+					zmove_count <= 0;
 					o_shift <= 0;
 					sld_count <= 0;
 					o_3x3 <= 0;
@@ -149,7 +153,6 @@ module nn_fsm
 					o_pmem_wr_en0 <= 0;
 					o_pmem_wr_en1 <= 0;
 					// psum_base_addr <= 0;
-					psum_sel <= 0; 
 					o_wmem_rd_addr <= 0; 
 					o_update_wgt <= 0;
 
@@ -158,6 +161,7 @@ module nn_fsm
 					o_update_bias <= 0;
 
 					o_wgt_shift <= 0;
+					wgt_shift_finish<=0;
 					if (i_start) begin
 						status <= WRIBF;
 						o_dma_rd_addr <= i_dma_img_base_addr;
@@ -169,7 +173,7 @@ module nn_fsm
 						psum_base_addr[3] <= i_ymove+(i_ymove<<1);
 						psum_base_addr[4] <= i_ymove<<2;
 						psum_base_addr[5] <= i_ymove+(i_ymove<<2);
-						in_c_count <= 0;
+						compute_statrt <= 0;
 					end			
 				end
 
@@ -182,7 +186,7 @@ module nn_fsm
 						o_dma_rd_addr <= i_dma_wgt_base_addr;
 						status <= COMPT;
 					end
-					else begin
+					else if (i_dma_rd_ready) begin
 						o_dma_rd_addr <= o_dma_rd_addr+1;
 						if (wr_flag==2'b00) begin
 							wr_flag <= 2'b01;
@@ -214,14 +218,23 @@ module nn_fsm
 					o_img_bf_wr_en <= 0;
 
 					// Write weight buffer
-					if (wgt_wr_count == i_zmove) begin
+					if (wgt_wr_count > i_zmove) begin
 						// wgt_wr_count <= 0;
 						o_wmem_wr_en <= 0;
 						o_wmem_wr_addr <= 0;
+						o_update_bias <= 0;
+						o_dma_rd_en <= 0;
 					end
-					else begin
-						if (o_wmem0_state==0 || o_wmem1_state==0) begin 
-							
+					else if(i_dma_rd_ready) begin
+						// if (o_wmem0_state==0) begin 	
+						if (wgt_wr_count==0&&o_update_bias==0) begin
+							o_update_bias <= 1;
+							o_bias <= i_dma_rd_data;
+							o_dma_rd_en <= 1;
+						end
+						else begin
+							o_update_bias <= 0;
+							o_dma_rd_en <= 1;
 							if (wr_flag==2'b00) begin
 								o_dma_rd_addr <= o_dma_rd_addr+1;
 								wr_flag <= 2'b01;
@@ -243,42 +256,491 @@ module nn_fsm
 								if (wmem_wr_which == wmem_wr_row_end) begin
 									wmem_wr_which <= 6'b0000_01;
 									wgt_wr_count <= wgt_wr_count+1'b1;
-									if ( (o_wmem_wr_addr == 127) || ((wgt_wr_count+1'b1) == i_zmove) ) begin
-										o_wmem_wr_addr <= 0;
-										if (o_wmem0_state==0) begin
-											o_wmem0_state <= 1; // wmem0 to be read
-											o_update_wgt <= 1;
-											o_wmem_rd_addr <= 0;
-										end
-										else begin
-											o_wmem1_state <= 1; // wmem1 to be read
-											o_update_wgt <= 1;
-											o_wmem_rd_addr <= 0;
-										end
-									end
-									else begin
-										o_wmem_wr_addr <= o_wmem_wr_addr +1'b1;
-									end
+									// if ((wgt_wr_count+1'b1) == i_zmove ) begin
+									// 	o_wmem_wr_addr <= 0;
+									// 	if (o_wmem0_state==0) begin
+									// 		o_wmem0_state <= 1; // wmem0 to be read
+									// 		o_update_wgt <= 1;
+									// 		o_wmem_rd_addr <= 0;
+									// 	end
+									// 	else begin
+									// 		o_wmem1_state <= 1; // wmem1 to be read
+									// 		o_update_wgt <= 1;
+									// 		o_wmem_rd_addr <= 0;
+									// 	end
+									// end
 								end
 								else begin
 									wmem_wr_which <= wmem_wr_which << 1;
 								end
-
 							end			
 						end
 					end
 					
-					if (o_wmem0_state==1 || o_wmem1_state==1) begin
-						if ((out_x_count+1)==i_xmove && (out_y_count)) begin
-							in_c_count <= in_c_count+1;
+					if (wgt_wr_count>0) begin
+
+						if (wgt_shift_finish) begin
+							if (ymove_count==i_ymove) begin
+								ymove_count <= 0;
+								if (xmove_count==i_ymove) begin
+									xmove_count <= 0;
+									if (zmove_count==i_zmove) begin
+										status <= BURST;
+									end
+									else zmove_count <= zmove_count+1;
+								end
+								else begin 
+									xmove_count <= xmove_count+1;
+									if(xmove_count[0])
+										case(i_mode)
+											2'b00: begin
+												psum_base_addr[0] <= psum_base_addr[2]+1;
+												psum_base_addr[1] <= psum_base_addr[2]+i_ymove+1;
+												psum_base_addr[2] <= psum_base_addr[2]+(i_ymove>>1)+1;
+											end
+											2'b01: begin
+												psum_base_addr[0] <= psum_base_addr[3]+1;
+												psum_base_addr[1] <= psum_base_addr[3]+i_ymove+1;
+												psum_base_addr[2] <= psum_base_addr[3]+(i_ymove>>1)+1;
+												psum_base_addr[3] <= psum_base_addr[2]+(i_ymove>>2)+1;
+											end
+											2'b10: begin
+												psum_base_addr[0] <= psum_base_addr[4]+1;
+												psum_base_addr[1] <= psum_base_addr[4]+i_ymove+1;
+												psum_base_addr[2] <= psum_base_addr[4]+(i_ymove>>1)+1;
+												psum_base_addr[3] <= psum_base_addr[3]+(i_ymove>>2)+1;
+												psum_base_addr[4] <= psum_base_addr[4]+(i_ymove>>2)+1;
+											end
+											2'b11: begin
+												psum_base_addr[0] <= psum_base_addr[5]+1;
+												psum_base_addr[1] <= psum_base_addr[5]+i_ymove+1;
+												psum_base_addr[2] <= psum_base_addr[5]+(i_ymove>>1)+1;
+												psum_base_addr[3] <= psum_base_addr[4]+(i_ymove>>2)+1;
+												psum_base_addr[4] <= psum_base_addr[5]+(i_ymove>>2)+1;
+												psum_base_addr[5] <= psum_base_addr[2]+(i_ymove>>3)+1;
+											end
+										endcase
+									else begin
+										psum_base_addr[0] <= psum_base_addr[0]-i_ymove;
+										psum_base_addr[1] <= psum_base_addr[1]-i_ymove;
+										psum_base_addr[2] <= psum_base_addr[2]-i_ymove;
+										psum_base_addr[3] <= psum_base_addr[3]-i_ymove;
+										psum_base_addr[4] <= psum_base_addr[4]-i_ymove;
+										psum_base_addr[5] <= psum_base_addr[5]-i_ymove;
+									end
+								end
+							end
+							else begin 
+								ymove_count <= ymove_count+1;
+								psum_base_addr[0] <= psum_base_addr[0]+1;
+								psum_base_addr[1] <= psum_base_addr[1]+1;
+								psum_base_addr[2] <= psum_base_addr[2]+1;
+								psum_base_addr[3] <= psum_base_addr[3]+1;
+								psum_base_addr[4] <= psum_base_addr[4]+1;
+								psum_base_addr[5] <= psum_base_addr[5]+1;
+							end
 						end
-						in_c_count
-						out_x_count
-
-
 						
+						if (zmove_count==0) begin
+							o_bias_sel <= 0;
+						end
+						else begin
+							o_bias_sel <= 1;
+						end
+
+						if (zmove_count <= i_zmove) begin
+
+							if (xmove_count==0 && ymove_count==0 && wgt_shift_count==0 && sld_count==0 && o_update_wgt==0) begin
+								o_update_wgt <= 1;
+								o_wmem_rd_addr <= o_wmem_rd_addr+1;
+							end
+
+							else begin
+								o_update_wgt <= 0;
+								case(i_mode)
+									2'b00: begin
+										// 4-3x3 mode
+										if (sld_count<3'd6) begin
+											wgt_shift_finish <= 0;
+											o_3x3 <= sld_count[0]; // slide high || low
+											o_shift <= 1;
+											sld_count <= sld_count+1'b1;
+											o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
+										end
+										else begin
+											// sliding rf is full, do the computation
+											compute_statrt <= 1;
+											o_shift <= 0;
+											if (i_stride==4'd1) begin
+												if (wgt_shift_count == 0) begin
+													o_wgt_shift <= 0;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[2];
+														o_pmem_wr_addr1 <= psum_base_addr[2];
+													end
+
+													o_pmem_rd_en0 <= ~xmove_count[0];
+													o_pmem_rd_en1 <= xmove_count[0];
+													o_pmem_rd_addr0 <= psum_base_addr[0];
+													o_pmem_rd_addr1 <= psum_base_addr[0];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 1) begin
+													o_wgt_shift <= 1;
+													o_pmem_wr_en0 <= ~xmove_count[0];
+													o_pmem_wr_en1 <= xmove_count[0];
+													o_pmem_wr_addr0 <= psum_base_addr[0];
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[1];
+													o_pmem_rd_addr1 <= psum_base_addr[1];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 2) begin
+													o_wgt_shift <= 2;
+													wgt_shift_finish <= 1;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[1];
+														o_pmem_wr_addr1 <= psum_base_addr[1];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[1];
+														o_pmem_wr_en1 <= 0;
+													end
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[2];
+													o_pmem_rd_addr1 <= psum_base_addr[2];
+													wgt_shift_count <= 0;
+
+													sld_count <= sld_count-2;
+												end
+												
+											end
+										end
+
+
+									end
+									2'b01: begin
+										// 4x4 mode
+										if (sld_count<3'd4) begin
+											wgt_shift_finish <= 0;
+											o_shift <= 1;
+											sld_count <= sld_count+1'b1;
+											o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
+										end
+										else begin 
+											compute_statrt <= 1;
+											o_shift <= 0;
+											if (i_stride==4'd1) begin
+												if (wgt_shift_count == 0) begin
+													o_wgt_shift <= 0;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[3];
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr1 <= psum_base_addr[3];
+													end
+
+													o_pmem_rd_en0 <= ~xmove_count[0];
+													o_pmem_rd_en1 <= xmove_count[0];
+													o_pmem_rd_addr0 <= psum_base_addr[0];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 1) begin
+													o_wgt_shift <= 1;
+													o_pmem_wr_en0 <= ~xmove_count[0];
+													o_pmem_wr_en1 <= xmove_count[0];
+													o_pmem_wr_addr0 <= psum_base_addr[0];
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[1];
+													o_pmem_rd_addr1 <= psum_base_addr[1];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 2) begin
+													o_wgt_shift <= 2;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[1];
+														o_pmem_wr_addr1 <= psum_base_addr[1];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[1];
+													end
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[2];
+													o_pmem_rd_addr1 <= psum_base_addr[2];
+													wgt_shift_count <= 3;
+												end
+												else if (wgt_shift_count == 3) begin
+													wgt_shift_finish <= 1;
+													sld_count <= sld_count-1;
+
+													o_wgt_shift <= 3;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[2];
+														o_pmem_wr_addr1 <= psum_base_addr[2];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[2];
+													end
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[3];
+													o_pmem_rd_addr1 <= psum_base_addr[3];
+													wgt_shift_count <= 0;
+												end
+											end
+											// TO DO: strides!=1
+										end
+
+									end
+
+									2'b10: begin
+										// 5x5 mode
+										if (sld_count<3'd5) begin
+											wgt_shift_finish <= 0;
+											o_shift <= 1;
+											sld_count <= sld_count+1'b1;
+											o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
+										end
+										else begin
+											compute_statrt <= 1;
+											o_shift <= 0;
+											if (i_stride==4'd1) begin
+												if (wgt_shift_count == 0) begin
+													o_wgt_shift <= 0;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[4];
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr1 <= psum_base_addr[4];
+													end
+
+													o_pmem_rd_en0 <= ~xmove_count[0];
+													o_pmem_rd_en1 <= xmove_count[0];
+													o_pmem_rd_addr0 <= psum_base_addr[0];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 1) begin
+													o_wgt_shift <= 1;
+													o_pmem_wr_en0 <= ~xmove_count[0];
+													o_pmem_wr_en1 <= xmove_count[0];
+													o_pmem_wr_addr0 <= psum_base_addr[0];
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[1];
+													o_pmem_rd_addr1 <= psum_base_addr[1];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 2) begin
+													o_wgt_shift <= 2;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[1];
+														o_pmem_wr_addr1 <= psum_base_addr[1];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[1];
+													end
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[2];
+													o_pmem_rd_addr1 <= psum_base_addr[2];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 3) begin
+													o_wgt_shift <= 3;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[2];
+														o_pmem_wr_addr1 <= psum_base_addr[2];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[2];
+													end
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[3];
+													o_pmem_rd_addr0 <= psum_base_addr[3];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 4) begin
+													wgt_shift_finish <= 1;
+													sld_count <= sld_count-1;
+
+													o_wgt_shift <= 4;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[3];
+														o_pmem_wr_addr1 <= psum_base_addr[3];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[3];
+													end
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[4];
+													o_pmem_rd_addr0 <= psum_base_addr[4];
+													wgt_shift_count <= 0;
+												end
+											end
+											// TO DO: strides!=1
+										end
+
+									end
+									2'b11: begin
+										// 6x6 mode
+										if (sld_count<3'd6) begin
+											wgt_shift_finish <= 0;
+											o_shift <= 1;
+											sld_count <= sld_count+1'b1;
+											o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
+										end
+										else begin
+											compute_statrt <= 1;
+											o_shift <= 0;
+											if (i_stride==4'd1) begin
+												if (wgt_shift_count == 0) begin
+													o_wgt_shift <= 0;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[5];
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr1 <= psum_base_addr[5];
+													end
+
+													o_pmem_rd_en0 <= ~xmove_count[0];
+													o_pmem_rd_en1 <= xmove_count[0];
+													o_pmem_rd_addr0 <= psum_base_addr[0];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 1) begin
+													o_wgt_shift <= 1;
+													o_pmem_wr_en0 <= ~xmove_count[0];
+													o_pmem_wr_en1 <= xmove_count[0];
+													o_pmem_wr_addr0 <= psum_base_addr[0];
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[1];
+													o_pmem_rd_addr1 <= psum_base_addr[1];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 2) begin
+													o_wgt_shift <= 2;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[1];
+														o_pmem_wr_addr1 <= psum_base_addr[1];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[1];
+													end
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[2];
+													o_pmem_rd_addr1 <= psum_base_addr[2];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 3) begin
+													o_wgt_shift <= 3;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[2];
+														o_pmem_wr_addr1 <= psum_base_addr[2];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[2];
+													end
+
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[3];
+													o_pmem_rd_addr1 <= psum_base_addr[3];
+													wgt_shift_count <= wgt_shift_count+1;
+												end
+												else if (wgt_shift_count == 4) begin
+													o_wgt_shift <= 4;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[3];
+														o_pmem_wr_addr1 <= psum_base_addr[3];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[3];
+													end
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[4];
+													o_pmem_rd_addr1 <= psum_base_addr[4];
+													wgt_shift_count <= 5;
+												end
+												else if (wgt_shift_count == 5) begin
+													wgt_shift_finish <= 1;
+													sld_count <= sld_count-1;
+
+													o_wgt_shift <= 5;
+													if(xmove_count>0) begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_en1 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[3];
+														o_pmem_wr_addr1 <= psum_base_addr[3];
+													end
+													else begin
+														o_pmem_wr_en0 <= 1;
+														o_pmem_wr_addr0 <= psum_base_addr[3];
+													end
+													o_pmem_rd_en0 <= 1;
+													o_pmem_rd_en1 <= 1;
+													o_pmem_rd_addr0 <= psum_base_addr[4];
+													o_pmem_rd_addr1 <= psum_base_addr[4];
+													wgt_shift_count <= 0;
+												end
+											end
+											// TO DO: strides!=1
+										end
+
+									end
+								endcase
+
+							end
+						end
 					end
-					
 				end
 
 				BURST: begin
@@ -299,411 +761,3 @@ endmodule
 
 
 
-// Sliding and computing
-					if (o_wmem0_state==1 || o_wmem1_state==1) begin
-
-						o_bias_sel <= (in_c_count==0)?0:1;
-						
-						if (in_c_count==0 && out_x_count==0 && out_y_count==0 && wgt_shift_count==0 && o_update_bias ==0) begin
-							o_update_bias <= 1;
-							o_bias <= i_dma_rd_data;
-							o_dma_rd_en <= 1;
-						end
-						else if (in_c_count < i_img_c) begin
-							o_update_bias <= 0;
-							if (out_x_count==0 && out_y_count==0 && wgt_shift_count==0 && o_update_wgt==0) begin
-								o_update_wgt <= 1;
-							end
-							else if (out_x_count < i_out_w) begin
-								
-								o_update_wgt <= 0;
-								if (out_y_count < i_out_w) begin
-									case(i_mode)
-										2'b00: begin
-											// 4-3x3 mode
-											if (sld_count<3'd6) begin
-												o_3x3 <= sld_count[0]; // slide high || low
-												o_shift <= 1;
-												sld_count <= sld_count+1'b1;
-												o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
-											end
-											else begin
-												// sliding rf is full, do the computation
-												o_shift <= 0;
-												if (i_stride==4'd1) begin
-													if (wgt_shift_count == 0) begin
-														o_wgt_shift <= 0;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[2];
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr1 <= psum_base_addr[2];
-														end
-
-														o_pmem_rd_en0 <= ~psum_sel;
-														o_pmem_rd_en1 <= psum_sel;
-														o_pmem_rd_addr0 <= psum_base_addr[0];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 1) begin
-														o_wgt_shift <= 1;
-														o_pmem_wr_en0 <= ~psum_sel;
-														o_pmem_wr_en1 <= psum_sel;
-														o_pmem_wr_addr0 <= psum_base_addr[0];
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[1];
-														o_pmem_rd_addr1 <= psum_base_addr[1];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 2) begin
-														o_wgt_shift <= 2;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[1];
-															o_pmem_wr_addr1 <= psum_base_addr[1];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[1];
-														end
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[2];
-														o_pmem_rd_addr0 <= psum_base_addr[2];
-														wgt_shift_count <= 0;
-
-														sld_count <= sld_count-2;
-														out_y_count <= out_y_count+1;
-													end
-													
-												end
-											end
-
-
-										end
-										2'b01: begin
-											// 4x4 mode
-											if (sld_count<3'd4) begin
-												o_shift <= 1;
-												sld_count <= sld_count+1'b1;
-												o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
-											end
-											else begin 
-												o_shift <= 0;
-												if (i_stride==4'd1) begin
-													if (wgt_shift_count == 0) begin
-														o_wgt_shift <= 0;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[3];
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr1 <= psum_base_addr[3];
-														end
-
-														o_pmem_rd_en0 <= ~psum_sel;
-														o_pmem_rd_en1 <= psum_sel;
-														o_pmem_rd_addr0 <= psum_base_addr[0];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 1) begin
-														o_wgt_shift <= 1;
-														o_pmem_wr_en0 <= ~psum_sel;
-														o_pmem_wr_en1 <= psum_sel;
-														o_pmem_wr_addr0 <= psum_base_addr[0];
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[1];
-														o_pmem_rd_addr1 <= psum_base_addr[1];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 2) begin
-														o_wgt_shift <= 2;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[1];
-															o_pmem_wr_addr1 <= psum_base_addr[1];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[1];
-														end
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[2];
-														o_pmem_rd_addr1 <= psum_base_addr[2];
-														wgt_shift_count <= 3;
-													end
-													else if (wgt_shift_count == 3) begin
-														sld_count <= sld_count-1;
-														out_y_count <= out_y_count+1;
-
-														o_wgt_shift <= 3;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[2];
-															o_pmem_wr_addr1 <= psum_base_addr[2];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[2];
-														end
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[3];
-														o_pmem_rd_addr1 <= psum_base_addr[3];
-														wgt_shift_count <= 0;
-													end
-												end
-												// TO DO: strides!=1
-											end
-
-										end
-
-										2'b10: begin
-											// 5x5 mode
-											if (sld_count<3'd5) begin
-												o_shift <= 1;
-												sld_count <= sld_count+1'b1;
-												o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
-											end
-											else begin 
-												o_shift <= 0;
-												if (i_stride==4'd1) begin
-													if (wgt_shift_count == 0) begin
-														o_wgt_shift <= 0;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[4];
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr1 <= psum_base_addr[4];
-														end
-
-														o_pmem_rd_en0 <= ~psum_sel;
-														o_pmem_rd_en1 <= psum_sel;
-														o_pmem_rd_addr0 <= psum_base_addr[0];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 1) begin
-														o_wgt_shift <= 1;
-														o_pmem_wr_en0 <= ~psum_sel;
-														o_pmem_wr_en1 <= psum_sel;
-														o_pmem_wr_addr0 <= psum_base_addr[0];
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[1];
-														o_pmem_rd_addr1 <= psum_base_addr[1];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 2) begin
-														o_wgt_shift <= 2;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[1];
-															o_pmem_wr_addr1 <= psum_base_addr[1];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[1];
-														end
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[2];
-														o_pmem_rd_addr1 <= psum_base_addr[2];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 3) begin
-														o_wgt_shift <= 3;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[2];
-															o_pmem_wr_addr1 <= psum_base_addr[2];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[2];
-														end
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[3];
-														o_pmem_rd_addr0 <= psum_base_addr[3];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 4) begin
-														sld_count <= sld_count-1;
-														out_y_count <= out_y_count+1;
-
-														o_wgt_shift <= 4;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[3];
-															o_pmem_wr_addr1 <= psum_base_addr[3];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[3];
-														end
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[4];
-														o_pmem_rd_addr0 <= psum_base_addr[4];
-														wgt_shift_count <= 0;
-													end
-												end
-												// TO DO: strides!=1
-											end
-
-										end
-										2'b11: begin
-											// 6x6 mode
-											if (sld_count<3'd6) begin
-												o_shift <= 1;
-												sld_count <= sld_count+1'b1;
-												o_img_bf_rd_addr <= o_img_bf_rd_addr+1;
-											end
-											else begin 
-												if (i_stride==4'd1) begin
-													if (wgt_shift_count == 0) begin
-														o_wgt_shift <= 0;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[5];
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr1 <= psum_base_addr[5];
-														end
-
-														o_pmem_rd_en0 <= ~psum_sel;
-														o_pmem_rd_en1 <= psum_sel;
-														o_pmem_rd_addr0 <= psum_base_addr[0];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 1) begin
-														o_wgt_shift <= 1;
-														o_pmem_wr_en0 <= ~psum_sel;
-														o_pmem_wr_en1 <= psum_sel;
-														o_pmem_wr_addr0 <= psum_base_addr[0];
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[1];
-														o_pmem_rd_addr1 <= psum_base_addr[1];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 2) begin
-														o_wgt_shift <= 2;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[1];
-															o_pmem_wr_addr1 <= psum_base_addr[1];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[1];
-														end
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[2];
-														o_pmem_rd_addr1 <= psum_base_addr[2];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 3) begin
-														o_wgt_shift <= 3;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[2];
-															o_pmem_wr_addr1 <= psum_base_addr[2];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[2];
-														end
-
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[3];
-														o_pmem_rd_addr1 <= psum_base_addr[3];
-														wgt_shift_count <= wgt_shift_count+1;
-													end
-													else if (wgt_shift_count == 4) begin
-														o_wgt_shift <= 4;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[3];
-															o_pmem_wr_addr1 <= psum_base_addr[3];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[3];
-														end
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[4];
-														o_pmem_rd_addr1 <= psum_base_addr[4];
-														wgt_shift_count <= 5;
-													end
-													else if (wgt_shift_count == 5) begin
-														sld_count <= sld_count-1;
-														out_y_count <= out_y_count+1;
-
-														o_wgt_shift <= 5;
-														if(psum_base_addr[0]>0) begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_en1 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[3];
-															o_pmem_wr_addr1 <= psum_base_addr[3];
-														end
-														else begin
-															o_pmem_wr_en0 <= 1;
-															o_pmem_wr_addr0 <= psum_base_addr[3];
-														end
-														o_pmem_rd_en0 <= 1;
-														o_pmem_rd_en1 <= 1;
-														o_pmem_rd_addr0 <= psum_base_addr[4];
-														o_pmem_rd_addr1 <= psum_base_addr[4];
-														wgt_shift_count <= 0;
-													end
-												end
-												// TO DO: strides!=1
-											end
-
-										end
-									endcase
-								end
-								else begin // one input column
-									out_y_count <= 0;
-									out_x_count <= out_x_count+1;
-								end
-							end
-							else begin // one input plane 
-								out_x_count <= 0;
-								in_c_count <= in_c_count+1;
-								o_update_wgt <= 1;
-								o_wmem_rd_addr <= o_wmem_rd_addr+1;
-							end
-						end
-						else begin // one output plane
-							in_c_count <= 0;
-							o_wmem_rd_addr <= 0;
-							if (o_wmem0_state) o_wmem0_state <= 0;
-							else if (o_wmem1_state) o_wmem1_state <= 0;
-						end
-					end

@@ -18,14 +18,13 @@ module nn
 	input i_clk,
 	input i_rst,
 
-
-
 	input [15:0] i_cfg,
 	input [1:0] i_cfg_addr,
 	input i_cfg_wr_en,
-	input [15:0] i_dma_rd_data,
 
 	input i_start,
+	input [15:0] i_dma_rd_data,
+	input i_dma_rd_ready,
 
 	output wire [DMA_ADDR_WIDTH-1:0] o_dma_wr_addr,
 	output wire o_dma_wr_en,
@@ -35,23 +34,24 @@ module nn
 
 	);
 
+	// config0
 	wire [1:0] mode; // 2'd0: 4-3x3, 2'd1: 4x4, 2'd2: 5x5, 2'd3: 6x6
 	wire [1:0] pool; // 0: wo/pool; 1: 2x2 pool; 2: 3x3 pool; 3: 4x4 pool
 	wire relu; // 1: w/relu; 0: wo/relu
 	wire [2:0] stride;
 	wire [3:0] psum_shift;
 	wire [3:0] TBD0;
-
+	// config1
 	wire [6:0] zmove;
-	wire [5:0] xmove;
 	wire [6:0] ymove;
+	wire [1:0] TBD1;
+	// comfig2
 	wire [DMA_ADDR_WIDTH-1:0] dma_img_base_addr;
 	wire [DMA_ADDR_WIDTH-1:0] dma_wgt_base_addr;
+	wire [5:0] xmove;
+	//config3
 	wire [15:0] img_wr_count;
 	
-	
-	wire [2:0] TBD;
-
 
 	wire [2:0] wgt_shift; // shift RIGHT how many 8 bits
 
@@ -80,7 +80,7 @@ module nn
 	wire [WMEM_ADDR_WIDTH-1:0] wmem_rd_addr;
 	wire update_wgt;
 
-
+	wire psum_sel;
 
 	wire shift;
 	wire sel_3x3;
@@ -92,9 +92,9 @@ module nn
 		.i_cfg(i_cfg),
 		.i_addr(i_cfg_addr),
 		.i_wr_en(i_cfg_wr_en),
-		.o_cfg0({pool, relu, stride, psum_shift, TBD0}),
-		.o_cfg1({xmove,ymove}),
-		.o_cfg2({TBD,psum_shift,dma_wgt_base_addr,pool,relu}),
+		.o_cfg0({mode,pool,relu,stride,psum_shift,TBD0}),
+		.o_cfg1({zmove,ymove,TBD1}),
+		.o_cfg2({dma_img_base_addr,dma_wgt_base_addr,xmove}),
 		.o_cfg3(img_wr_count)
 		);
 
@@ -103,7 +103,7 @@ module nn
 		.i_clk(i_clk),
 		.i_rst(i_rst),
 		.i_start(i_start),
-		.i_mode(mode[1:0]),
+		.i_mode(mode),
 		.i_stride(stride),
 		.i_zmove(zmove),
 		.i_xmove(xmove),
@@ -112,7 +112,7 @@ module nn
 		.i_dma_wgt_base_addr(dma_wgt_base_addr),
 		.i_img_wr_count(img_wr_count),
 		.i_dma_rd_data(i_dma_rd_data),
-
+		.i_dma_rd_ready(i_dma_rd_ready),
 		.o_dma_rd_en(o_dma_rd_en),
 		.o_dma_rd_addr(o_dma_rd_addr),
 
@@ -136,6 +136,7 @@ module nn
 		.o_bias(bias),
 		.o_update_bias(update_bias), //???????
 
+		.o_psum_sel(psum_sel),
 		.o_pmem_wr_en0(pmem_wr_en0),
 		.o_pmem_wr_en1(pmem_wr_en1),
 		.o_pmem_rd_en0(pmem_rd_en0),
@@ -168,7 +169,7 @@ module nn
 		.i_rst(i_rst),
 		.i_data(new_img_row),
 		.i_shift(shift),
-		.i_mode(mode[1:0]),
+		.i_mode(mode),
 		.i_3x3(sel_3x3),
 		.o_img(img)
 		);
@@ -178,7 +179,7 @@ module nn
 		.i_clk(i_clk),
 		.i_img(img),
 
-		.i_mode(mode[1:0]), // 2'b00: 2-3x3, 2'b01: 4x4, 2'b10: 5x5, 2'b11: 6x6
+		.i_mode(mode), // 2'b00: 2-3x3, 2'b01: 4x4, 2'b10: 5x5, 2'b11: 6x6
 		.i_wgt_shift(wgt_shift), // shift RIGHT how many 8 bits
 
 
@@ -187,7 +188,7 @@ module nn
 		.i_update_bias(update_bias),
 		.i_bias_sel(bias_sel), // 0: add bias; 1: add psum
 
-
+		.i_psum_sel(psum_sel),
 		.i_pmem_wr_en0(pmem_wr_en0),
 		.i_pmem_wr_en1(pmem_wr_en1),
 		.i_pmem_rd_en0(pmem_rd_en0),
