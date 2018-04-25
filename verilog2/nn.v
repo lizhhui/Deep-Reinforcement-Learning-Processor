@@ -50,7 +50,8 @@ module nn
 	wire [DMA_ADDR_WIDTH-1:0] dma_wgt_base_addr;
 	wire [5:0] xmove;
 	//config3
-	wire [15:0] img_wr_count;
+	wire [DMA_ADDR_WIDTH-1:0] dma_wr_base_addr;
+	wire [11:0] img_wr_count;
 	
 
 	wire [2:0] wgt_shift; // shift RIGHT how many 8 bits
@@ -87,6 +88,9 @@ module nn
 
 	wire wmem0_state, wmem1_state;
 
+	wire [DATA_WIDTH-1:0] pmem_rd_data0, pmem_rd_data1;
+	wire [DATA_WIDTH-1:0] pmem_rd_data0_relu, pmem_rd_data1_relu;
+
 	nn_cfg cfg(
 		.i_clk(i_clk),
 		.i_cfg(i_cfg),
@@ -95,7 +99,7 @@ module nn
 		.o_cfg0({mode,pool,relu,stride,psum_shift,TBD0}),
 		.o_cfg1({zmove,ymove,TBD1}),
 		.o_cfg2({dma_img_base_addr,dma_wgt_base_addr,xmove}),
-		.o_cfg3(img_wr_count)
+		.o_cfg3({dma_wr_base_addr,img_wr_count})
 		);
 
 
@@ -104,6 +108,8 @@ module nn
 		.i_rst(i_rst),
 		.i_start(i_start),
 		.i_mode(mode),
+		.i_pool(pool),
+		// .i_relu(relu),
 		.i_stride(stride),
 		.i_zmove(zmove),
 		.i_xmove(xmove),
@@ -111,6 +117,10 @@ module nn
 		.i_dma_img_base_addr(dma_img_base_addr),
 		.i_dma_wgt_base_addr(dma_wgt_base_addr),
 		.i_img_wr_count(img_wr_count),
+
+		.i_pmem_rd_data0(pmem_rd_data0_relu),
+		.i_pmem_rd_data1(pmem_rd_data1_relu),
+
 		.i_dma_rd_data(i_dma_rd_data),
 		.i_dma_rd_ready(i_dma_rd_ready),
 		.o_dma_rd_en(o_dma_rd_en),
@@ -146,7 +156,10 @@ module nn
 		.o_pmem_rd_addr0(pmem_rd_addr0),
 		.o_pmem_rd_addr1(pmem_rd_addr1),
 
-		.o_update_wgt(update_wgt)
+		.o_update_wgt(update_wgt),
+		.o_dma_wr_en(o_dma_wr_en),
+		.o_dma_wr_addr(o_dma_wr_addr),
+		.o_dma_wr_data(o_dma_wr_data)
 
 		);
 	
@@ -205,9 +218,17 @@ module nn
 		.i_update_wgt(update_wgt),
 
 
-		.o_result0(),
-		.o_result1()
+		.o_result0(pmem_rd_data0),
+		.o_result1(pmem_rd_data1)
 
 		);
+
+	nn_relu relu_inst(
+	.i_data0(pmem_rd_data0),
+	.i_data1(pmem_rd_data1),
+	.i_relu(relu),
+	.o_data0(pmem_rd_data0_relu),
+	.o_data1(pmem_rd_data1_relu)
+	);
 
 endmodule

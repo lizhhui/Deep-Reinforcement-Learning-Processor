@@ -14,7 +14,7 @@ wire [4:0] dma_wr_addr;
 wire dma_wr_en;
 wire [15:0] dma_wr_data;
 wire dma_rd_en;
-wire [5:0] dma_rd_addr;
+wire [4:0] dma_rd_addr;
 
 
 wire [15:0] dma_rd_data;

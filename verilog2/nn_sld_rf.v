@@ -44,26 +44,26 @@ module nn_sld_rf
 								  o_img[95 : 72], o_img[63 : 48], i_data[15: 8],
 								  o_img[47 : 24], o_img[15 :  0], i_data[7 : 0]};
 				end
-				2'b01: o_img <= {o_img[279:248], i_data[47:40], 
-								 o_img[231:200], i_data[39:32], 
-								 o_img[183:152], i_data[31:24], 
-								 o_img[135:104], i_data[23:16],
-								 o_img[87 : 56], i_data[15: 8],
-								 o_img[39 :  8], i_data[7 : 0]};
+				2'b01: o_img <= {o_img[279:240], i_data[47:40], 
+								 o_img[231:192], i_data[39:32], 
+								 o_img[183:144], i_data[31:24], 
+								 o_img[135: 96], i_data[23:16],
+								 o_img[87 : 48], i_data[15: 8],
+								 o_img[39 :  0], i_data[7 : 0]};
 
-				2'b10: o_img <= {o_img[279:248], i_data[47:40], 
-								 o_img[231:200], i_data[39:32], 
-								 o_img[183:152], i_data[31:24], 
-								 o_img[135:104], i_data[23:16],
-								 o_img[87 : 56], i_data[15: 8],
-								 o_img[39 :  8], i_data[7 : 0]};
+				2'b10: o_img <= {o_img[279:240], i_data[47:40], 
+								 o_img[231:192], i_data[39:32], 
+								 o_img[183:144], i_data[31:24], 
+								 o_img[135: 96], i_data[23:16],
+								 o_img[87 : 48], i_data[15: 8],
+								 o_img[39 :  0], i_data[7 : 0]};
 
-				2'b11: o_img <= {o_img[279:248], i_data[47:40], 
-								 o_img[231:200], i_data[39:32], 
-								 o_img[183:152], i_data[31:24], 
-								 o_img[135:104], i_data[23:16],
-								 o_img[87 : 56], i_data[15: 8],
-								 o_img[39 :  8], i_data[7 : 0]};
+				2'b11: o_img <= {o_img[279:240], i_data[47:40], 
+								 o_img[231:192], i_data[39:32], 
+								 o_img[183:144], i_data[31:24], 
+								 o_img[135: 96], i_data[23:16],
+								 o_img[87 : 48], i_data[15: 8],
+								 o_img[39 :  0], i_data[7 : 0]};
 				default: o_img <= o_img;
 			endcase
 		end

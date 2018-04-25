@@ -15,7 +15,7 @@ module wmem_fake
   input i_rd_en,   
   input [ADDR_WIDTH-1:0] i_rd_addr, 
 
-  output wire [ROW_WGT_WIDTH-1:0] o_bias,
+  //output wire [ROW_WGT_WIDTH-1:0] o_bias,
   output wire [ROW_WGT_WIDTH-1:0] o_rd_data
 );
 
@@ -25,7 +25,7 @@ reg [ROW_WGT_WIDTH-1:0] REG [0:3];
 
 reg [ADDR_WIDTH-1:0] rd_addr;
 
-assign o_bias = REG[3];
+//assign o_bias = REG[3];
 
 assign o_rd_data = REG[rd_addr];
 

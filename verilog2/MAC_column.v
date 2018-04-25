@@ -11,9 +11,10 @@ module MAC_column
 (
 	input [COLUMN_DATA_WIDTH-1:0] i_img_column,
 	input signed [COLUMN_DATA_WIDTH-1:0] i_wgt_column,
+	input [1:0] i_mode,
 	// input signed [OUT_WIDTH-1:0] i_psum_column,
 
-	output wire signed [COLUMN_OUT_WIDTH-1:0] o_psum_column
+	output reg [COLUMN_OUT_WIDTH-1:0] o_psum_column
 	);
 
 
@@ -31,6 +32,13 @@ module MAC_column
 		end
 	endgenerate
 
-	assign  o_psum_column = MAC_psum[0]+MAC_psum[1]+MAC_psum[2]+MAC_psum[3]+MAC_psum[4]+MAC_psum[5];
+	always @(*) begin
+		case (i_mode)
+			2'b00: o_psum_column = MAC_psum[0]+MAC_psum[1]+MAC_psum[2]+MAC_psum[3]+MAC_psum[4]+MAC_psum[5]; // 4-3x3
+			2'b01: o_psum_column = MAC_psum[0]+MAC_psum[1]+MAC_psum[2]+MAC_psum[3]; // 4x4
+			2'b10: o_psum_column = MAC_psum[0]+MAC_psum[1]+MAC_psum[2]+MAC_psum[3]+MAC_psum[4]; // 5x5
+			2'b11: o_psum_column = MAC_psum[0]+MAC_psum[1]+MAC_psum[2]+MAC_psum[3]+MAC_psum[4]+MAC_psum[5]; // 6x6
+		endcase
+	end
 		
 endmodule
