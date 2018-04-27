@@ -23,12 +23,12 @@ module nn
 	input i_cfg_wr_en,
 
 	input i_start,
-	input [15:0] i_dma_rd_data,
+	input [7:0] i_dma_rd_data,
 	input i_dma_rd_ready,
 
 	output wire [DMA_ADDR_WIDTH-1:0] o_dma_wr_addr,
 	output wire o_dma_wr_en,
-	output wire [15:0] o_dma_wr_data,
+	output wire [7:0] o_dma_wr_data,
 	output wire o_dma_rd_en,
 	output wire [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr
 
@@ -51,7 +51,7 @@ module nn
 	wire [5:0] xmove;
 	//config3
 	wire [DMA_ADDR_WIDTH-1:0] dma_wr_base_addr;
-	wire [11:0] img_wr_count;
+	wire [10:0] img_wr_count;
 	
 
 	wire [2:0] wgt_shift; // shift RIGHT how many 8 bits
@@ -116,6 +116,7 @@ module nn
 		.i_ymove(ymove),
 		.i_dma_img_base_addr(dma_img_base_addr),
 		.i_dma_wgt_base_addr(dma_wgt_base_addr),
+		.i_dma_wr_base_addr(dma_wr_base_addr),
 		.i_img_wr_count(img_wr_count),
 
 		.i_pmem_rd_data0(pmem_rd_data0_relu),

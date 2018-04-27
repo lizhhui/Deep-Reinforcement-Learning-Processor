@@ -12,12 +12,12 @@ reg dma_rd_ready;
 
 wire [4:0] dma_wr_addr;
 wire dma_wr_en;
-wire [15:0] dma_wr_data;
+wire [7:0] dma_wr_data;
 wire dma_rd_en;
 wire [4:0] dma_rd_addr;
 
 
-wire [15:0] dma_rd_data;
+wire [7:0] dma_rd_data;
 
 nn nn_inst(
 	.i_clk(clk),
@@ -40,7 +40,7 @@ nn nn_inst(
 dram dram_inst(
   .i_clk(clk), 
   .i_wr_en(dma_wr_en),
-  .i_wr_addr(dma_wr_addr),
+  .i_wr_addr({5'b0,dma_wr_addr}),
   .i_wr_data(dma_wr_data), 
   .i_rd_en(dma_rd_en),   
   .i_rd_addr(dma_rd_addr), 
@@ -69,7 +69,7 @@ initial begin
 	cfg_wr_en = 0;
 
 	#45
-	cfg = 16'b00_00_0_001_0000_0000;
+	cfg = 16'b11_01_0_001_0000_0000;
 	cfg_addr = 2'b00;
 	cfg_wr_en = 1;
 	// mode: 4-3x3; stride: 1
@@ -94,8 +94,10 @@ initial begin
 	cfg_wr_en = 0;
 	start = 1;
 
-end
+	#20 
+	start = 0;
 
+end
 
 endmodule
 
@@ -105,16 +107,16 @@ module dram
   input i_clk, 
   input i_wr_en,
   input [9:0] i_wr_addr,
-  input [15:0] i_wr_data, 
+  input [7:0] i_wr_data, 
   input i_rd_en,   
   input [9:0] i_rd_addr, 
 
-  output wire [15:0] o_rd_data
+  output wire [7:0] o_rd_data
 );
 
 
 // Here for the fake memory, only 4 will be implemented
-reg [15:0] REG [0:1023];
+reg [7:0] REG [0:1023];
 
 reg [9:0] rd_addr;
 
