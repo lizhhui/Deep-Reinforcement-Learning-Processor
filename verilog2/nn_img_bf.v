@@ -23,7 +23,7 @@ module nn_img_bf
 
 
 // Here for the fake memory, only 16 will be implemented
-reg [TOTAL_DATA_WIDTH-1:0] REG [0:127];
+reg [TOTAL_DATA_WIDTH-1:0] REG [0:511];
 reg [ADDR_WIDTH-1:0] rd_addr0;
 
 assign o_rd_data0 = REG[i_rd_addr0];

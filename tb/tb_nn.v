@@ -69,26 +69,28 @@ initial begin
 	cfg_wr_en = 0;
 
 	#45
-	cfg = 16'b11_01_0_001_0000_0000;
+	cfg = 16'b11_00_1_110_0000_0000;
 	cfg_addr = 2'b00;
 	cfg_wr_en = 1;
-	// mode: 4-3x3; stride: 1
+	// mode_pool_relu_stride_psumshift_TBD0
 
 	#20
-	cfg = 16'b0000000_0000001_00;
+	cfg = 16'b0000010_0000001_00;
 	cfg_addr = 2'b01;
 	cfg_wr_en = 1;
+	// zmove_ymove_TBD1
 
 	#20
-	cfg = 16'b00000_00000_000001;
+	cfg = 16'b00000_00000_000011;
 	cfg_addr = 2'b10;
 	cfg_wr_en = 1;
+	// dma_img_base_addr, dma_wgt_base_addr, xmove
 
 	#20
-	cfg = 16'd64;
+	cfg = 16'd200;
 	cfg_addr = 2'b11;
 	cfg_wr_en = 1;
-	
+	// dma_wr_base_addr, img_wr_count
 
 	#20
 	cfg_wr_en = 0;

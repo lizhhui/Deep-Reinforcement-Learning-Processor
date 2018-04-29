@@ -21,12 +21,14 @@ module pmem_fake
 
 
 // Here for the fake memory, only 16 will be implemented
-reg [DATA_WIDTH-1:0] REG [0:15];
+reg [DATA_WIDTH-1:0] REG [0:63];
 reg [ADDR_WIDTH-1:0] rd_addr;
 
 always @ (posedge i_clk) begin
  	if(i_rd_en) 
      rd_addr <= i_rd_addr;
+  else
+     rd_addr <= 8'bx;
 end
 
 assign o_rd_data = REG[rd_addr];
