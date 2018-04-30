@@ -1,7 +1,8 @@
 module nn
 #(parameter
 	DATA_WIDTH = 8,
-	DMA_ADDR_WIDTH = 5,
+	DMA_ADDR_WIDTH = 16,
+	DMA_ADDR_BASE_WIDTH = 5,
 	COLUMN_NUM = 6,
 	ROW_NUM = 6,
 	PMEM_ADDR_WIDTH = 8,
@@ -30,7 +31,9 @@ module nn
 	output wire o_dma_wr_en,
 	output wire [7:0] o_dma_wr_data,
 	output wire o_dma_rd_en,
-	output wire [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr
+	output wire [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr,
+
+	output wire o_finish
 
 	);
 
@@ -46,11 +49,11 @@ module nn
 	wire [6:0] ymove;
 	wire [1:0] TBD1;
 	// comfig2
-	wire [DMA_ADDR_WIDTH-1:0] dma_img_base_addr;
-	wire [DMA_ADDR_WIDTH-1:0] dma_wgt_base_addr;
+	wire [DMA_ADDR_BASE_WIDTH-1:0] dma_img_base_addr;
+	wire [DMA_ADDR_BASE_WIDTH-1:0] dma_wgt_base_addr;
 	wire [5:0] xmove;
 	//config3
-	wire [DMA_ADDR_WIDTH-1:0] dma_wr_base_addr;
+	wire [DMA_ADDR_BASE_WIDTH-1:0] dma_wr_base_addr;
 	wire [10:0] img_wr_count;
 	
 
@@ -90,6 +93,12 @@ module nn
 
 	wire [DATA_WIDTH-1:0] pmem_rd_data0, pmem_rd_data1;
 	wire [DATA_WIDTH-1:0] pmem_rd_data0_relu, pmem_rd_data1_relu;
+
+
+	// wire [10:0] dma_wr_addr_bias;
+	// wire [10:0] dma_rd_addr_bias;
+
+
 
 	nn_cfg cfg(
 		.i_clk(i_clk),
@@ -160,7 +169,8 @@ module nn
 		.o_update_wgt(update_wgt),
 		.o_dma_wr_en(o_dma_wr_en),
 		.o_dma_wr_addr(o_dma_wr_addr),
-		.o_dma_wr_data(o_dma_wr_data)
+		.o_dma_wr_data(o_dma_wr_data),
+		.o_finish(o_finish)
 
 		);
 	

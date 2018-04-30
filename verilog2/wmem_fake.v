@@ -21,7 +21,7 @@ module wmem_fake
 
 
 // Here for the fake memory, only 4 will be implemented
-reg [ROW_WGT_WIDTH-1:0] REG [0:3];
+reg [ROW_WGT_WIDTH-1:0] REG [0:63];
 
 reg [ADDR_WIDTH-1:0] rd_addr;
 

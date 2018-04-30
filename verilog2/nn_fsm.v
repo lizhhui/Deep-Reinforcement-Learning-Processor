@@ -3,12 +3,14 @@
 module nn_fsm
 #(parameter
 	DATA_WIDTH = 8,
-	DMA_ADDR_WIDTH = 5,
+	DMA_ADDR_WIDTH = 16,
+	DMA_ADDR_BASE_WIDTH = 5,
 	COLUMN_NUM = 6,
 	ROW_NUM = 6,
 	PMEM_ADDR_WIDTH = 8,
 	WMEM_ADDR_WIDTH = 7,
 	IMEM_ADDR_WIDTH = 10, // depth = 1024, 4KB
+	DMA_ADDR_BIAS_WIDTH = DMA_ADDR_WIDTH - DMA_ADDR_BASE_WIDTH,
 	WMEM_DEPTH = 2**WMEM_ADDR_WIDTH-1,
   	IMEM_DATA_WIDTH = DATA_WIDTH*6,
 	COLUMN_DATA_WIDTH = DATA_WIDTH*COLUMN_NUM,
@@ -31,10 +33,10 @@ module nn_fsm
 	input [6:0] i_zmove,
 	input [5:0] i_xmove,
 	input [6:0] i_ymove,
-	input [DMA_ADDR_WIDTH-1:0] i_dma_img_base_addr,
-	input [DMA_ADDR_WIDTH-1:0] i_dma_wgt_base_addr,
-	input [DMA_ADDR_WIDTH-1:0] i_dma_wr_base_addr,
-	input [IMEM_ADDR_WIDTH-1:0] i_img_wr_count,
+	input [DMA_ADDR_BASE_WIDTH-1:0] i_dma_img_base_addr,
+	input [DMA_ADDR_BASE_WIDTH-1:0] i_dma_wgt_base_addr,
+	input [DMA_ADDR_BASE_WIDTH-1:0] i_dma_wr_base_addr,
+	input [IMEM_ADDR_WIDTH:0] i_img_wr_count,
 
 	// from PE
 	input [DATA_WIDTH-1:0] i_pmem_rd_data0,
@@ -46,7 +48,7 @@ module nn_fsm
 	input i_dma_rd_ready,
 
 	output reg o_dma_rd_en,
-	output reg [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr,
+	output wire [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr,
 
 	output reg o_img_bf_wr_en,
 	output reg [IMEM_ADDR_WIDTH-1:0] o_img_bf_wr_addr,
@@ -85,8 +87,10 @@ module nn_fsm
 	
 	output reg o_update_wgt,
 	output reg o_dma_wr_en,
-	output reg [DMA_ADDR_WIDTH-1:0] o_dma_wr_addr,
-	output reg signed [7:0] o_dma_wr_data
+	output [DMA_ADDR_WIDTH-1:0] o_dma_wr_addr,
+	output reg signed [7:0] o_dma_wr_data,
+
+	output reg o_finish
 
 );
 	localparam RESET = 2'b00; // initial/reset
@@ -127,6 +131,13 @@ module nn_fsm
 	reg pmem_rd_en0_d1, pmem_rd_en0_d2;
 	reg pmem_rd_en1_d1, pmem_rd_en1_d2;
 
+	reg [DMA_ADDR_BIAS_WIDTH-1:0] dma_rd_addr_bias;
+	reg [DMA_ADDR_BIAS_WIDTH-1:0] dma_wr_addr_bias;
+
+
+	assign o_dma_wr_addr = {i_dma_wr_base_addr, dma_wr_addr_bias};
+	assign o_dma_rd_addr = (status==WRIBF)?{i_dma_img_base_addr, dma_rd_addr_bias}:{i_dma_wgt_base_addr, dma_rd_addr_bias};
+
 	assign o_psum_sel = ~xmove_count[0];
 
 	always @(posedge i_clk) begin
@@ -140,11 +151,12 @@ module nn_fsm
 		if (~i_rst) begin
 			status <= 2'b00;
 			wr_flag <= 3'd0;
+			o_finish <= 0;
 		end
 		else begin
 			case (status)
 				RESET: begin
-					o_dma_rd_addr <= 0;
+					dma_rd_addr_bias <= 0;
 					o_dma_rd_en <= 0;
 					o_img_bf_wr_addr <= 10'b11_1111_1111;
 					o_img_bf_wr_data <= 0;
@@ -178,7 +190,7 @@ module nn_fsm
 					o_wgt_shift <= 0;
 
 					o_dma_wr_en <= 0;
-					o_dma_wr_addr <= 0;
+					dma_wr_addr_bias <= 0;
 					o_dma_wr_data <= 8'b1000_0000;
 					wgt_shift_finish<=0;
 
@@ -187,7 +199,7 @@ module nn_fsm
 					pool_count <= 0;
 					if (i_start) begin
 						status <= WRIBF;
-						o_dma_rd_addr <= i_dma_img_base_addr;
+						dma_rd_addr_bias <= 0;
 						o_dma_rd_en <= 1;
 						// initial psum_base_addr
 						psum_base_addr[0] <= 0;
@@ -197,6 +209,7 @@ module nn_fsm
 						psum_base_addr[4] <= (i_ymove+1)<<2;
 						psum_base_addr[5] <= (i_ymove+1)+((i_ymove+1)<<2);
 						compute_statrt <= 0;
+						o_finish <= 0;
 					end			
 				end
 
@@ -206,7 +219,7 @@ module nn_fsm
 						img_wr_count <= 0;
 						// o_dma_rd_en <= 0;
 						o_img_bf_wr_en <= 0;
-						o_dma_rd_addr <= i_dma_wgt_base_addr;
+						dma_rd_addr_bias <= 0;
 						status <= COMPT;
 						case (i_mode)
 							2'b00: wmem_wr_row_end <= 6'b10_0000;
@@ -216,7 +229,7 @@ module nn_fsm
 						endcase
 					end
 					else if (i_dma_rd_ready) begin
-						o_dma_rd_addr <= o_dma_rd_addr+1;
+						dma_rd_addr_bias <= dma_rd_addr_bias+1;
 						case (wr_flag)
 							3'd0: begin
 								wr_flag <= 3'd1;
@@ -288,7 +301,7 @@ module nn_fsm
 						o_dma_rd_en <= 0;
 					end
 					else if(i_dma_rd_ready) begin
-						o_dma_rd_addr <= o_dma_rd_addr+1;
+						dma_rd_addr_bias <= dma_rd_addr_bias+1;
 						if (wgt_wr_count==0&&o_update_bias==0) begin
 							o_update_bias <= 1;
 							o_bias <= i_dma_rd_data;
@@ -367,7 +380,7 @@ module nn_fsm
 										o_pmem_rd_en1 <= 0;
 										o_pmem_rd_addr0 <= 0;
 										o_pmem_rd_addr1 <= 0;
-										o_dma_wr_addr <= i_dma_wr_base_addr-1;
+										dma_wr_addr_bias <= -1;
 										pool_count <= 2'd3;
 										case(i_mode)
 											2'b00: begin
@@ -1155,7 +1168,7 @@ module nn_fsm
 								if (pmem_rd_en0_d1) o_dma_wr_data <= i_pmem_rd_data0;
 								else o_dma_wr_data <= i_pmem_rd_data1;
 
-								o_dma_wr_addr <= o_dma_wr_addr+1;
+								dma_wr_addr_bias <= dma_wr_addr_bias+1;
 							end
 							else if (xmove_count>i_xmove) begin
 								o_dma_wr_en <= 0;
@@ -1176,7 +1189,7 @@ module nn_fsm
 
 									if (pool_count==2'b00) begin
 										o_dma_wr_en <= 1;
-										o_dma_wr_addr <= o_dma_wr_addr+1;
+										dma_wr_addr_bias <= dma_wr_addr_bias+1;
 									end
 									else begin
 										o_dma_wr_en <= 0;
@@ -1193,7 +1206,7 @@ module nn_fsm
 
 									if (pool_count==2'b00) begin
 										o_dma_wr_en <= 1;
-										o_dma_wr_addr <= o_dma_wr_addr+1;
+										dma_wr_addr_bias <= dma_wr_addr_bias+1;
 									end
 									else begin
 										o_dma_wr_en <= 0;
@@ -1295,7 +1308,7 @@ module nn_fsm
 												end
 												else begin
 													// o_dma_wr_en <= 1;
-													// o_dma_wr_addr <= o_dma_wr_addr+1;
+													// dma_wr_addr_bias <= dma_wr_addr_bias+1;
 													if(ymove_count>psum_base_addr[1]) begin
 														// if (i_pmem_rd_data1>o_dma_wr_data) begin
 														// 	o_dma_wr_data <= i_pmem_rd_data1;
@@ -1407,7 +1420,7 @@ module nn_fsm
 											end
 											2'b11: begin
 												// o_dma_wr_en <= 1;
-												// o_dma_wr_addr <= o_dma_wr_addr+1;
+												// dma_wr_addr_bias <= dma_wr_addr_bias+1;
 												if (ymove_count==0 && xmove_count==0) begin
 													o_pmem_rd_addr0 <= 0;
 												end
@@ -1551,7 +1564,7 @@ module nn_fsm
 											end
 											2'b11: begin
 												// o_dma_wr_en <= 1;
-												// o_dma_wr_addr <= o_dma_wr_addr+1;
+												// dma_wr_addr_bias <= dma_wr_addr_bias+1;
 												if(ymove_count>psum_base_addr[2]) begin
 													// if (i_pmem_rd_data1>o_dma_wr_data) begin
 													// 	o_dma_wr_data <= i_pmem_rd_data1;
@@ -1671,7 +1684,7 @@ module nn_fsm
 											end
 											2'b11: begin
 												// o_dma_wr_en <= 1;
-												// o_dma_wr_addr <= o_dma_wr_addr+1;
+												// dma_wr_addr_bias <= dma_wr_addr_bias+1;
 												if (ymove_count==0 && xmove_count==0) begin
 													o_pmem_rd_addr0 <= 0;
 												end
@@ -1735,6 +1748,7 @@ module nn_fsm
 							end
 							else begin
 								status <= RESET;
+								o_finish <= 1;
 							end
 						end
 					end

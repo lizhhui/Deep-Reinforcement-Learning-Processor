@@ -19,6 +19,10 @@ wire [4:0] dma_rd_addr;
 
 wire [7:0] dma_rd_data;
 
+wire valid;
+
+wire finish;
+
 nn nn_inst(
 	.i_clk(clk),
 	.i_rst(rst_n),
@@ -28,13 +32,16 @@ nn nn_inst(
 
 	.i_start(start),
 	.i_dma_rd_data(dma_rd_data),
-	.i_dma_rd_ready(dma_rd_ready),
+	.i_dma_rd_ready(valid),
 
 	.o_dma_wr_addr(dma_wr_addr),
 	.o_dma_wr_en(dma_wr_en),
 	.o_dma_wr_data(dma_wr_data),
 	.o_dma_rd_en(dma_rd_en),
-	.o_dma_rd_addr(dma_rd_addr)
+	.o_dma_rd_addr(dma_rd_addr),
+
+
+	.o_finish(finish),
 	);
 
 dram dram_inst(
@@ -44,7 +51,8 @@ dram dram_inst(
   .i_wr_data(dma_wr_data), 
   .i_rd_en(dma_rd_en),   
   .i_rd_addr(dma_rd_addr), 
-  .o_rd_data(dma_rd_data)
+  .o_rd_data(dma_rd_data),
+  .o_valid(valid)
 );
 
 
@@ -107,33 +115,48 @@ endmodule
 module dram
 (
   input i_clk, 
+  input i_rst,
   input i_wr_en,
   input [9:0] i_wr_addr,
   input [7:0] i_wr_data, 
   input i_rd_en,   
   input [9:0] i_rd_addr, 
 
-  output wire [7:0] o_rd_data
+  output reg [7:0] o_rd_data,
+  output reg o_valid
 );
 
 
 // Here for the fake memory, only 4 will be implemented
 reg [7:0] REG [0:1023];
 
-reg [9:0] rd_addr;
+
+always @ (posedge i_clk or negedge i_rst) begin
+	if (~i_rst) begin
+		o_rd_data <= 0;
+	  	o_valid <= 0;
+	end
+	else begin
+	  if(i_rd_en) begin 
+	  	o_rd_data <= REG[i_rd_addr];
+	  	o_valid <= 1;
+	  end
+	  else begin 
+	  	o_rd_data <= 8'bx;
+	  	o_valid <= 0;
+	  end
+	end
+end
 
 
-assign o_rd_data = i_rd_en? 16'h01_01:0;
-
-// always @ (posedge i_clk) begin
-//   if(i_rd_en) o_rd_data <= 1;
-//   else o_rd_data <= 0;
-//   // rd_addr <= i_rd_addr;
-// end
-
-
-always @ (posedge i_clk) begin
- 	if(i_wr_en) REG[i_wr_addr] <= i_wr_data; // Write behavior
+always @ (posedge i_clk or negedge i_rst) begin
+	if (~i_rst) begin
+		REG[0] = 0;
+		
+	end
+	else if(i_wr_en) begin
+		REG[i_wr_addr] <= i_wr_data; // Write behavior
+	end
 end
 
 endmodule
