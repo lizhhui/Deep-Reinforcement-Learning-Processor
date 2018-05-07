@@ -6,7 +6,7 @@ module mult
 	OUT_WIDTH = 2*DATA_WIDTH
 	)
 (
-	input [DATA_WIDTH-1:0] i_img,
+	input signed [DATA_WIDTH-1:0] i_img,
 	input signed [DATA_WIDTH-1:0] i_wgt,
 	//input signed [OUT_WIDTH-1:0] i_psum,
 

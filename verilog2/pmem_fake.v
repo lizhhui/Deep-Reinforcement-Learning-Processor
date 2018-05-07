@@ -2,9 +2,8 @@
 
 module pmem_fake
 #(parameter
-	DATA_WIDTH = 8,
-	ADDR_WIDTH = 8, // depth = 256, 256B
-  TOTAL_DATA_WIDTH = DATA_WIDTH*3
+	PDATA_WIDTH = 16,
+	ADDR_WIDTH = 8 // depth = 256, 256B
 	)
 (
   // inputs
@@ -12,16 +11,16 @@ module pmem_fake
   input i_wr_en,
   input i_rd_en, 
   input [ADDR_WIDTH-1:0] i_wr_addr,
-  input [DATA_WIDTH-1:0] i_wr_data,   
+  input [PDATA_WIDTH-1:0] i_wr_data,   
   input [ADDR_WIDTH-1:0] i_rd_addr,
     
   //output
-  output wire [DATA_WIDTH-1:0] o_rd_data
+  output wire [PDATA_WIDTH-1:0] o_rd_data
 );
 
 
 // Here for the fake memory, only 16 will be implemented
-reg [DATA_WIDTH-1:0] REG [0:63];
+reg [PDATA_WIDTH-1:0] REG [0:63];
 reg [ADDR_WIDTH-1:0] rd_addr;
 
 always @ (posedge i_clk) begin

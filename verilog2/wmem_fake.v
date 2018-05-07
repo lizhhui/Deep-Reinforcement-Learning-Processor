@@ -31,6 +31,7 @@ assign o_rd_data = REG[rd_addr];
 
 always @ (posedge i_clk) begin
   if(i_rd_en) rd_addr <= i_rd_addr;
+  else rd_addr <= 7'bx;
 end
 
 
