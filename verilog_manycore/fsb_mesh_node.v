@@ -342,11 +342,11 @@ module  fsb_mesh_node
       , .reset_i
 
       //input from the manycore
-      , .link_sif_i(  )
-      , .link_sif_o(  )
+      , .link_sif_i( ver_link_sif_li[S][drlp_x_cord_gp] )
+      , .link_sif_o( ver_link_sif_lo[S][drlp_x_cord_gp] )
 
-      , .my_x_i    (     )
-      , .my_y_i    (     )
+      , .my_x_i    ( x_cord_width_lp'(drlp_x_cord_gp) )
+      , .my_y_i    ( y_cord_width_lp'(num_tiles_y_lp) )
 
       , .dest_x_i  (     )
 
