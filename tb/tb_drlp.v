@@ -1,5 +1,5 @@
-// Testbench for nn
-module tb_nn();
+// Testbench for drlp
+module tb_drlp();
 
 reg clk, rst_n;
 reg [31:0] cfg;
@@ -21,7 +21,7 @@ wire valid;
 
 //wire finish;
 
-nn_accelerator nn_inst(
+drlp drlp_inst(
 	.i_clk(clk),
 	.i_rst(rst_n),
 	.i_cfg(cfg),

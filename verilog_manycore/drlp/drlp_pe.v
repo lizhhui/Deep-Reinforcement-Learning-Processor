@@ -72,7 +72,6 @@ module drlp_pe
 				.i_clk(i_clk), 
 				.i_wr_en(i_wmem_wr_en[i]),
 				.i_wr_addr(i_wmem_wr_addr),
-				// .i_wr_data(i_wmem_wr_data[(i+1)*ROW_DATA_WIDTH-1:i*ROW_DATA_WIDTH]), 
 				.i_wr_data(i_wmem_wr_data), 
 				.i_rd_en(1'b1),   
 				.i_rd_addr(i_wmem_rd_addr), 

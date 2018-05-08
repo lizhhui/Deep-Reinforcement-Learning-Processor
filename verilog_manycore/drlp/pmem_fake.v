@@ -2,9 +2,8 @@
 
 module pmem_fake
 #(parameter
-	DATA_WIDTH = 8,
-	ADDR_WIDTH = 8, // depth = 256, 256B
-  TOTAL_DATA_WIDTH = DATA_WIDTH*3
+	DATA_WIDTH = 16,
+	ADDR_WIDTH = 8 // depth = 256, 256B
 	)
 (
   // inputs

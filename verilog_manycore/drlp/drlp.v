@@ -19,23 +19,21 @@ module drlp
 	TOTAL_IN_WIDTH = DATA_WIDTH*COLUMN_NUM*ROW_NUM
 	)
 (
-	input i_clk,
-	input i_rst,
+	 input i_clk
+	,input i_rst
 
-	input [CFG_WIDTH-1:0] i_cfg,
-	input [CFG_ADDR_WIDTH-1:0] i_cfg_addr,
-	input i_cfg_wr_en,
-	//input i_start,
+	,input [CFG_WIDTH-1:0] i_cfg
+	,input [CFG_ADDR_WIDTH-1:0] i_cfg_addr
+	,input i_cfg_wr_en
 
-	input [DMA_DATA_WIDTH-1:0] i_dma_rd_data,
-	input i_dma_rd_ready,
+	,input [DMA_DATA_WIDTH-1:0] i_dma_rd_data
+	,input i_dma_rd_ready
 
-	output wire [DMA_ADDR_WIDTH-1:0] o_dma_wr_addr,
-	output wire o_dma_wr_en,
-	output wire [DMA_DATA_WIDTH-1:0] o_dma_wr_data,
-	output wire o_dma_rd_en,
-	output wire [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr
-
+	,output wire [DMA_ADDR_WIDTH-1:0] o_dma_wr_addr
+	,output wire o_dma_wr_en
+	,output wire [DMA_DATA_WIDTH-1:0] o_dma_wr_data
+	,output wire o_dma_rd_en
+	,output wire [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr
 	// output wire o_finish
 
 	);
