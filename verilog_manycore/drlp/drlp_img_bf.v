@@ -3,7 +3,7 @@
 module drlp_img_bf
 #(parameter
 	DATA_WIDTH = 8,
-	ADDR_WIDTH = 10, // depth = 1024, 4KB
+	ADDR_WIDTH = 12, // depth = 4096, 24KB
   TOTAL_DATA_WIDTH = DATA_WIDTH*6
 	)
 (
@@ -19,7 +19,7 @@ module drlp_img_bf
 
 
 // Here for the fake memory, only 16 will be implemented
-reg [TOTAL_DATA_WIDTH-1:0] REG [0:511];
+reg [TOTAL_DATA_WIDTH-1:0] REG [0:4095];
 reg [ADDR_WIDTH-1:0] rd_addr0;
 
 assign o_rd_data0 = REG[i_rd_addr0];

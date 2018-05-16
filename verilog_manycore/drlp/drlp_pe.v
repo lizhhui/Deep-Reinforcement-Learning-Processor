@@ -6,8 +6,8 @@ module drlp_pe
 	PDATA_WIDTH = 16,
 	COLUMN_NUM = 6,
 	ROW_NUM = 6,
-	PMEM_ADDR_WIDTH = 8,
-	WMEM_ADDR_WIDTH = 7,
+	PMEM_ADDR_WIDTH = 7,
+	WMEM_ADDR_WIDTH = 6,
 	COLUMN_DATA_WIDTH = DATA_WIDTH*COLUMN_NUM,
 	ROW_DATA_WIDTH = DATA_WIDTH*ROW_NUM,
 	OUT_WIDTH = 2*DATA_WIDTH,
@@ -16,6 +16,7 @@ module drlp_pe
 	)
 (
 	input i_clk,
+	input i_rst,
 	input [TOTAL_IN_WIDTH-1:0] i_img,
 
 	input [1:0] i_mode, // 2'b00: 2-3x3, 2'b01: 4x4, 2'b10: 5x5, 2'b11: 6x6
@@ -68,7 +69,7 @@ module drlp_pe
 		genvar i;
 		for (i = 0; i < COLUMN_NUM; i = i + 1)
 		begin: row_wgt
-			wmem_fake wmem(
+/*			wmem_fake wmem(
 				.i_clk(i_clk), 
 				.i_wr_en(i_wmem_wr_en[i]),
 				.i_wr_addr(i_wmem_wr_addr),
@@ -77,6 +78,22 @@ module drlp_pe
 				.i_rd_addr(i_wmem_rd_addr), 
 				.o_rd_data(wmem2rf[i])
 				);
+*/			       
+			 bsg_mem_1r1w_sync
+                		#(.width_p(48)
+                 		,.els_p(64)
+		                )
+                		wmem(
+		                .clk_i(i_clk),
+                		.reset_i(i_rst),
+		                .w_v_i(i_wmem_wr_en[i]),
+                		.w_addr_i(i_wmem_wr_addr),
+		                .w_data_i(i_wmem_wr_data),
+                		.r_v_i(1'b1),
+		                .r_addr_i(i_wmem_rd_addr),
+                		.r_data_o(wmem2rf[i])
+		                );
+
 
 			// wgt_rf wgt_rf(
 			// 	.i_clk(i_clk),
@@ -383,7 +400,7 @@ module drlp_pe
 		end
 	end
 
-	pmem_fake pmem0(
+/*	pmem_fake pmem0(
 	  .i_clk(i_clk), 
 	  .i_wr_en(i_pmem_wr_en0),
 	  .i_rd_en(i_pmem_rd_en0),
@@ -402,7 +419,36 @@ module drlp_pe
 	  .i_rd_addr(i_pmem_rd_addr1),
 	  .o_rd_data(psum1_rd)
 	);
+*/
+	bsg_mem_1r1w_sync
+		#(.width_p(16)
+                 ,.els_p(128)
+                 )
+            pmem0(
+                 .clk_i(i_clk),
+                 .reset_i(i_rst),
+                 .w_v_i(i_pmem_wr_en0),
+                 .w_addr_i(i_pmem_wr_addr0),
+                 .w_data_i(psum0_truncated),
+                 .r_v_i(i_pmem_rd_en0),
+                 .r_addr_i(i_pmem_rd_addr0),
+                 .r_data_o(psum0_rd)
+                 );
 
+        bsg_mem_1r1w_sync
+                #(.width_p(16)
+                 ,.els_p(128)
+                 )
+            pmem1(
+                 .clk_i(i_clk),
+                 .reset_i(i_rst),
+                 .w_v_i(i_pmem_wr_en1),
+                 .w_addr_i(i_pmem_wr_addr1),
+                 .w_data_i(psum1_truncated),
+                 .r_v_i(i_pmem_rd_en1),
+                 .r_addr_i(i_pmem_rd_addr1),
+                 .r_data_o(psum1_rd)
+                 );
 
 	assign o_result0 = psum0_rd;
 	assign o_result1 = psum1_rd;

@@ -22,8 +22,8 @@ module drlp_sld_rf
 
 	);
 
-	always @(posedge i_clk or negedge i_rst) begin
-		if (~i_rst) begin
+	always @(posedge i_clk) begin
+		if (i_rst) begin
 			o_img <= 0;
 		end
 		else if (i_shift) begin
@@ -50,42 +50,27 @@ module drlp_sld_rf
 								  o_img[95 : 72], i_data[15: 8], o_img[71 : 56], 
 								  o_img[47 : 24], i_data[7 : 0], o_img[23 :  8]};
 				end
-				2'b01: o_img <= {o_img[279:240], i_data[47:40], 
-								 o_img[231:192], i_data[39:32], 
-								 o_img[183:144], i_data[31:24], 
-								 o_img[135: 96], i_data[23:16],
-								 o_img[87 : 48], i_data[15: 8],
-								 o_img[39 :  0], i_data[7 : 0]};
+				2'b01: o_img <= {o_img[287:272], i_data[47:40], o_img[271:248],
+								 o_img[239:224], i_data[39:32], o_img[223:200],
+								 o_img[191:176], i_data[31:24], o_img[175:152],  
+								 o_img[143:128], i_data[23:16],	o_img[127:104],
+								 o_img[95 : 80], i_data[15: 8], o_img[79 : 56],
+								 o_img[47 : 32], i_data[7 : 0], o_img[31 :  8]};
 
-				2'b10: o_img <= {o_img[279:240], i_data[47:40], 
-								 o_img[231:192], i_data[39:32], 
-								 o_img[183:144], i_data[31:24], 
-								 o_img[135: 96], i_data[23:16],
-								 o_img[87 : 48], i_data[15: 8],
-								 o_img[39 :  0], i_data[7 : 0]};
-
-				2'b11: o_img <= {o_img[279:240], i_data[47:40], 
-								 o_img[231:192], i_data[39:32], 
-								 o_img[183:144], i_data[31:24], 
-								 o_img[135: 96], i_data[23:16],
-								 o_img[87 : 48], i_data[15: 8],
-								 o_img[39 :  0], i_data[7 : 0]};
+				2'b10: o_img <= {o_img[287:280], i_data[47:40], o_img[279:248],
+								 o_img[239:232], i_data[39:32], o_img[231:200],
+								 o_img[191:184], i_data[31:24], o_img[183:152],  
+								 o_img[143:136], i_data[23:16],	o_img[135:104],
+								 o_img[95 : 88], i_data[15: 8], o_img[87 : 56],
+								 o_img[47 : 40], i_data[7 : 0], o_img[39 :  8]};
+				2'b11: o_img <= {i_data[47:40], o_img[287:248],
+								 i_data[39:32], o_img[239:200],
+								 i_data[31:24], o_img[191:152],  
+								 i_data[23:16],	o_img[143:104],
+								 i_data[15: 8], o_img[95 : 56],
+								 i_data[7 : 0], o_img[47 :  8]};
 				default: o_img <= o_img;
 			endcase
-			// case (i_mode)
-			// 	2'b00: begin
-			// 		if (~i_3x3)
-			// 			o_img <= {o_img[287:144], i_data[47:0], o_img[143:48]};
-			// 		else
-			// 			o_img <= {i_data[47:0], o_img[287:192], o_img[143:0]};
-			// 	end
-			// 	2'b01: o_img <= {i_data[47:0], o_img[287:48]};
-
-			// 	2'b10: o_img <= {i_data[47:0], o_img[287:48]};
-
-			// 	2'b11: o_img <= {i_data[47:0], o_img[287:48]};
-			// 	default: o_img <= o_img;
-			// endcase
 		end
 	end
 

@@ -8,8 +8,8 @@ module drlp
 	CFG_ADDR_WIDTH = 3,
 	COLUMN_NUM = 6,
 	ROW_NUM = 6,
-	PMEM_ADDR_WIDTH = 8,
-	WMEM_ADDR_WIDTH = 7,
+	PMEM_ADDR_WIDTH = 7,
+	WMEM_ADDR_WIDTH = 6,
 	IMEM_ADDR_WIDTH = 12, // depth = 1024, 4KB
   	IMEM_DATA_WIDTH = DATA_WIDTH*6,
 	COLUMN_DATA_WIDTH = DATA_WIDTH*COLUMN_NUM,
@@ -25,16 +25,22 @@ module drlp
 	,input [CFG_WIDTH-1:0] i_cfg
 	,input [CFG_ADDR_WIDTH-1:0] i_cfg_addr
 	,input i_cfg_wr_en
+	,input i_cfg_rd_en
+	,output wire [CFG_WIDTH-1:0] o_cfg
 
 	,input [DMA_DATA_WIDTH-1:0] i_dma_rd_data
 	,input i_dma_rd_ready
+
+	,input i_hand_shaked
 
 	,output wire [DMA_ADDR_WIDTH-1:0] o_dma_wr_addr
 	,output wire o_dma_wr_en
 	,output wire [DMA_DATA_WIDTH-1:0] o_dma_wr_data
 	,output wire o_dma_rd_en
 	,output wire [DMA_ADDR_WIDTH-1:0] o_dma_rd_addr
-	// output wire o_finish
+	
+	,output wire o_finish
+	,output wire [31:0] o_finish_write
 
 	);
 
@@ -49,6 +55,14 @@ module drlp
 	wire [7:0] ymove;
 
 	// config1
+	wire [DMA_ADDR_WIDTH-1:0] dma_img_base_addr;
+	// config2
+	wire [DMA_ADDR_WIDTH-1:0] dma_wgt_base_addr;
+	// config3
+	wire [DMA_ADDR_WIDTH-1:0] dma_wr_base_addr;
+	// config4
+	// wire [31:0] finish_write;
+	// config5
 	wire [11:0] img_wr_count;
 	wire result_scale; // 0: w/i scale; 1: w/o scale
 	wire [2:0] result_shift;
@@ -56,17 +70,6 @@ module drlp
 	wire wgt_mem_update;
 	wire bias_psum; // 0: add bias; 1: add psum
 	wire wo_compute; //0: compute; 1: just output
-	wire [11:0] TBD0; 
-
-	// config2
-	wire [DMA_ADDR_WIDTH-1:0] dma_img_base_addr;
-	// config3
-	wire [DMA_ADDR_WIDTH-1:0] dma_wgt_base_addr;
-	// config4
-	wire [DMA_ADDR_WIDTH-1:0] dma_wr_base_addr;
-	// config5
-	wire [31:0] finish_write;
-	// config6
 	wire start;
 	
 
@@ -118,14 +121,15 @@ module drlp
 
 	wire [31:0] dma_base_addr;
 	wire rd_dma;
-
-	wire finish;
+	wire last;
 
 	drlp_cfg cfg(
 		.i_clk(i_clk),
 		.i_cfg(i_cfg),
 		.i_addr(i_cfg_addr),
 		.i_wr_en(i_cfg_wr_en),
+		.i_rd_en(i_cfg_rd_en),
+		.o_cfg(o_cfg),
 		// config0
 		.o_mode(mode), // 2'd0: 4-3x3, 2'd1: 4x4, 2'd2: 5x5, 2'd3: 6x6
 		.o_pool(pool), // 0: w/o pool, 1: 2x2 pool,
@@ -150,7 +154,7 @@ module drlp
 		// config4
 		.o_dma_wr_base_addr(dma_wr_base_addr),
 		// config5
-		.o_finish_write(finish_write),
+		.o_finish_write(o_finish_write),
 		// config6
 		.o_start(start)
 		);
@@ -160,6 +164,7 @@ module drlp
 		.i_rst(i_rst),
 		.i_dma_base_addr(dma_base_addr),
 		.i_rd_dma(rd_dma),
+		.i_last(last),
 		.i_data(i_dma_rd_data),
 		.i_ready(i_dma_rd_ready),
 		.i_mode(mode),
@@ -199,7 +204,10 @@ module drlp
 		.i_buffer_data(buffer_data),
 		.i_buffer_ready(buffer_ready),
 
+		.i_hand_shaked(i_hand_shaked),
+
 		.o_dma_rd_en(rd_dma),
+		.o_last(last),
 		.o_dma_base_addr(dma_base_addr),
 
 		.o_img_bf_wr_en(img_bf_wr_en),
@@ -235,13 +243,13 @@ module drlp
 		.o_dma_wr_en(o_dma_wr_en),
 		.o_dma_wr_addr(o_dma_wr_addr),
 		.o_dma_wr_data(o_dma_wr_data),
-		.o_finish(finish)
+		.o_finish(o_finish)
 		);
 	
 
 	wire [ROW_DATA_WIDTH-1:0] new_img_row;
 	wire [TOTAL_IN_WIDTH-1:0] img;
-
+/*
 	drlp_img_bf img_bf(
 		.i_clk(i_clk), 
 		.i_wr_en(img_bf_wr_en),
@@ -250,6 +258,21 @@ module drlp
 		.i_rd_en(1'b1),   
 		.i_rd_addr0(img_bf_rd_addr),
 		.o_rd_data0(new_img_row)
+		);
+*/
+	bsg_mem_1r1w_sync 
+		#(.width_p(48)
+		 ,.els_p(4096)
+		)
+		img_bf(
+		.clk_i(i_clk),
+		.reset_i(i_rst),
+		.w_v_i(img_bf_wr_en),
+		.w_addr_i(img_bf_wr_addr),
+		.w_data_i(img_bf_wr_data),
+		.r_v_i(1'b1),
+		.r_addr_i(img_bf_rd_addr),
+		.r_data_o(new_img_row)
 		);
 
 	drlp_sld_rf sld_rf(
@@ -290,6 +313,7 @@ module drlp
 		begin: multi_pes
 			drlp_pe pe_inst(
 				.i_clk(i_clk),
+				.i_rst(i_rst),
 				.i_img(img),
 
 				.i_mode(mode), // 2'b00: 2-3x3, 2'b01: 4x4, 2'b10: 5x5, 2'b11: 6x6
